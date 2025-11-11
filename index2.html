@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Wellesley 4-Year Planner – Integrated View</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Tailwind CDN for quick styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 text-slate-900">
+  <div id="root" class="min-h-screen"></div>
+
+  <!-- React + ReactDOM + Babel (for quick in-browser JSX) -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useState, useMemo } = React;
+
+    const cx = (...classes) => classes.filter(Boolean).join(" ");
+    const fmtPct = (x) => `${Math.round(x * 100)}%`;
+
+    // --- Requirements (aligned with Wellesley structure-ish) ---
+    const seedRequirements = [
+      { id: "UNITS", label: "Total Units (32 required)", targetCount: 32 },
+      { id: "WRIT", label: "First-Year Writing (WRIT)", targetCount: 1 },
+      { id: "LANG", label: "Foreign Language Requirement", targetCount: 2 },
+      { id: "QR",   label: "Quantitative Reasoning (QR component)", targetCount: 1 },
+      { id: "DL",   label: "Data Literacy (DL component)", targetCount: 1 },
+      { id: "LL",   label: "Language and Literature (LL)", targetCount: 1 },
+      { id: "ARTS", label: "Visual Arts, Music, Theatre, Film, and Video (ARTS)", targetCount: 1 },
+      { id: "SBA",  label: "Social and Behavioral Analysis (SBA)", targetCount: 1 },
+      { id: "EC",   label: "Epistemology and Cognition (EC)", targetCount: 1 },
+      { id: "HST",  label: "Historical Studies (HST)", targetCount: 1 },
+      { id: "REP",  label: "Religion, Ethics, and Moral Philosophy (REP)", targetCount: 1 },
+      { id: "MM",   label: "Mathematical Modeling and Problem Solving (MM)", targetCount: 1 },
+      { id: "NPS",  label: "Natural and Physical Science (NPS)", targetCount: 1 },
+      { id: "LAB",  label: "Lab unit within Area 3", targetCount: 1 },
+      { id: "300",  label: "300-level Courses", targetCount: 4 },
+      { id: "PE",   label: "Physical Education", targetCount: 1 },
+      { id: "EXP",  label: "Experiential Learning units (ELR)", targetCount: 2 },
+    ];
+
+    // --- Seed Catalog ---
+    const seedCourses = [
+      { id: "writ-101", code: "WRIT 101", title: "First-Year Writing", credits: 1,
+        tags: ["WRIT"], level: 100, depts: ["Writing Program"], source: "Wellesley" },
+      { id: "qr-140", code: "QR 140", title: "Intro Quantitative Reasoning", credits: 1,
+        tags: ["QR"], level: 100, depts: ["Quantitative Reasoning"], source: "Wellesley" },
+      { id: "stat-160", code: "STAT 160", title: "Intro to Data Literacy", credits: 1,
+        tags: ["DL","MM"], level: 100, depts: ["Statistics"], source: "Wellesley" },
+      { id: "chem-105", code: "CHEM 105", title: "Fundamentals of Chemistry (Lab)", credits: 1,
+        tags: ["NPS","LAB"], level: 100, depts: ["Chemistry"], source: "Wellesley" },
+      { id: "cs-111", code: "CS 111", title: "Computer Programming", credits: 1,
+        tags: ["MM"], level: 100, depts: ["Computer Science"], source: "Wellesley" },
+      { id: "hist-210", code: "HIST 210", title: "Global History Since 1800", credits: 1,
+        tags: ["HST"], level: 200, depts: ["History"], source: "Wellesley" },
+      { id: "rel-205", code: "REL 205", title: "Religion & Philosophy", credits: 1,
+        tags: ["REP"], level: 200, depts: ["Religion"], source: "Wellesley" },
+      { id: "art-140", code: "ART 140", title: "Intro to Studio Practice", credits: 1,
+        tags: ["ARTS"], level: 100, depts: ["Art"], source: "Wellesley" },
+      { id: "span-201", code: "SPAN 201", title: "Intermediate Spanish", credits: 1,
+        tags: ["LANG","LL"], level: 200, depts: ["Spanish"], source: "Wellesley" },
+      { id: "mit-6.100a", code: "MIT 6.100A", title: "Intro to Python (MIT)", credits: 1,
+        tags: ["MM"], level: 100, depts: ["MIT EECS"], source: "MIT" },
+    ];
+
+    const years = [1, 2, 3, 4];
+    const defaultTerms = years.flatMap((y) => ([
+      { id: `Y${y}-F`, label: `Year ${y} • Fall`, slots: [{}, {}, {}, {}] },
+      { id: `Y${y}-S`, label: `Year ${y} • Spring`, slots: [{}, {}, {}, {}] },
+    ]));
+
+    const wellesleyDeptOptions = [
+      "Africana Studies","American Studies","Anthropology","Architecture","Art","Art History",
+      "Astronomy","Biochemistry","Biological Sciences","Chemical Physics","Chemistry",
+      "Cinema and Media Studies","Classical Studies","Cognitive and Linguistic Science",
+      "Comparative Literature","Computer Science","East Asian Languages and Cultures",
+      "East Asian Studies","Economics","Education","Engineering","English","Environmental Studies",
+      "French","Geosciences","German","Greek","Hebrew","History","International Relations",
+      "Italian Studies","Japanese","Jewish Studies","Korean","Latin","Latin American Studies",
+      "Linguistics","Mathematics","Media Arts & Sciences","Middle Eastern Studies","Music",
+      "Neuroscience","Peace and Justice Studies","Philosophy","Physical Education","Physics",
+      "Political Science","Psychology","Quantitative Reasoning","Religion","Russian","Sociology",
+      "South Asia Studies","Spanish","Statistics","Theatre Studies","Women’s and Gender Studies",
+      "Writing Program",
+    ];
+
+    const requirementTagOptions = [
+      { id: "WRIT", label: "First-Year Writing (WRIT)" },
+      { id: "LANG", label: "Foreign Language (LANG)" },
+      { id: "QR",   label: "Quantitative Reasoning (QR)" },
+      { id: "DL",   label: "Data Literacy (DL)" },
+      { id: "LL",   label: "Language & Literature (LL)" },
+      { id: "ARTS", label: "Visual Arts / Music / Theatre / Film / Video (ARTS)" },
+      { id: "SBA",  label: "Social & Behavioral Analysis (SBA)" },
+      { id: "EC",   label: "Epistemology & Cognition (EC)" },
+      { id: "HST",  label: "Historical Studies (HST)" },
+      { id: "REP",  label: "Religion, Ethics & Moral Philosophy (REP)" },
+      { id: "MM",   label: "Mathematical Modeling & Problem Solving (MM)" },
+      { id: "NPS",  label: "Natural & Physical Science (NPS)" },
+      { id: "LAB",  label: "Lab unit (LAB)" },
+      { id: "300",  label: "300-level course (300)" },
+      { id: "PE",   label: "Physical Education (PE)" },
+      { id: "EXP",  label: "Experiential Learning (EXP)" },
+    ];
+
+    // --- Small UI helpers ---
+    const Pill = ({ className, children }) => (
+      <span className={cx("inline-flex items-center rounded-full border px-2 py-1 text-xs", className)}>
+        {children}
+      </span>
+    );
+
+    const Section = ({ title, right, subtitle, id, children }) => (
+      <section id={id} className="mb-6 rounded-2xl border bg-white/70 p-4 shadow-sm">
+        <header className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">{title}</h2>
+            {subtitle && <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>}
+          </div>
+          {right}
+        </header>
+        {children}
+      </section>
+    );
+
+    const CourseSelect = ({ catalog, value, onChange, placeholder }) => (
+      <select
+        className="w-full rounded-lg border px-2 py-1 text-xs"
+        value={value || ""}
+        onChange={(e) => onChange(e.target.value || null)}
+      >
+        <option value="">{placeholder || "Select course"}</option>
+        {catalog.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.code} — {c.title}
+          </option>
+        ))}
+      </select>
+    );
+
+    const SheetRow = ({ placeholderCode, placeholderName, tags }) => (
+      <tr>
+        <td className="border-b px-2 py-1">
+          <input className="w-full rounded-md border px-1 py-0.5 text-[0.65rem]" placeholder={placeholderCode} />
+        </td>
+        <td className="border-b px-2 py-1">
+          <input className="w-full rounded-md border px-1 py-0.5 text-[0.65rem]" placeholder={placeholderName} />
+        </td>
+        <td className="border-b px-2 py-1">
+          <input className="w-full rounded-md border px-1 py-0.5 text-[0.65rem]" placeholder="1.0" />
+        </td>
+        <td className="border-b px-2 py-1">
+          {tags && tags.length ? (
+            <div className="flex flex-wrap gap-1">
+              {tags.map((t) => (
+                <span
+                  key={t}
+                  className="inline-flex items-center rounded-full border bg-slate-50 px-2 py-0.5 text-[0.6rem]"
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <input
+              className="w-full rounded-md border px-1 py-0.5 text-[0.65rem]"
+              placeholder="Tags / notes"
+            />
+          )}
+        </td>
+      </tr>
+    );
+
+    const TermSheetCard = ({ termLabel, meta, rows = 0, children }) => {
+      const childCount = React.Children.count(children);
+      const emptyRows = Array.from({ length: Math.max(0, rows - childCount) });
+      return (
+        <div className="rounded-2xl border bg-white p-3">
+          <div className="mb-1 flex items-center justify-between">
+            <div className="text-xs font-semibold">{termLabel}</div>
+            {meta && <div className="text-[0.65rem] text-slate-500">{meta}</div>}
+          </div>
+          <div className="overflow-hidden rounded-xl border">
+            <table className="w-full border-collapse text-[0.65rem]">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="border-b px-2 py-1 text-left font-medium text-slate-600">Subject #</th>
+                  <th className="border-b px-2 py-1 text-left font-medium text-slate-600">Name</th>
+                  <th className="border-b px-2 py-1 text-left font-medium text-slate-600">Units</th>
+                  <th className="border-b px-2 py-1 text-left font-medium text-slate-600">Req Tags / Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {children}
+                {emptyRows.map((_, i) => <SheetRow key={`empty-${i}`} />)}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    };
+
+    // Sheet card that pulls from real data + clickable to open detail
+    const LinkedTermSheetCard = ({ termLabel, meta, term, byId, onOpen }) => {
+      const slots = term ? term.slots : Array.from({ length: 4 }, () => ({}));
+      return (
+        <button
+          type="button"
+          onClick={onOpen}
+          className="group rounded-2xl border bg-white p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+        >
+          <div className="mb-1 flex items-center justify-between">
+            <div className="text-xs font-semibold">{termLabel}</div>
+            {meta && <div className="text-[0.65rem] text-slate-500">{meta}</div>}
+          </div>
+          <div className="overflow-hidden rounded-xl border">
+            <table className="w-full border-collapse text-[0.65rem]">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="border-b px-2 py-1 text-left font-medium text-slate-600">Subject #</th>
+                  <th className="border-b px-2 py-1 text-left font-medium text-slate-600">Name</th>
+                  <th className="border-b px-2 py-1 text-left font-medium text-slate-600">Units</th>
+                  <th className="border-b px-2 py-1 text-left font-medium text-slate-600">Req Tags / Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {slots.map((slot, i) => {
+                  const primary = slot.primary ? byId[slot.primary] : null;
+                  const backups = (slot.backups || []).map(id => byId[id]).filter(Boolean);
+                  return (
+                    <tr key={i}>
+                      <td className="border-b px-2 py-1 align-top">
+                        <div className="text-[0.65rem] font-medium">
+                          {primary ? primary.code : "—"}
+                        </div>
+                        {backups.length > 0 && (
+                          <div className="mt-0.5 text-[0.6rem] text-slate-500">
+                            Backup: {backups.map((b) => b.code).join(", ")}
+                          </div>
+                        )}
+                      </td>
+                      <td className="border-b px-2 py-1 align-top">
+                        <div className="text-[0.65rem]">
+                          {primary ? primary.title : "Empty slot"}
+                        </div>
+                      </td>
+                      <td className="border-b px-2 py-1 align-top">
+                        {primary ? primary.credits.toFixed(1) : "—"}
+                      </td>
+                      <td className="border-b px-2 py-1 align-top">
+                        {primary && primary.tags?.length ? (
+                          <div className="flex flex-wrap gap-1">
+                            {primary.tags.map((t) => (
+                              <span
+                                key={t}
+                                className="inline-flex items-center rounded-full border bg-slate-50 px-2 py-0.5 text-[0.6rem]"
+                              >
+                                {t}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-[0.6rem] text-slate-400">No tags</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-1 text-[0.6rem] text-indigo-600 opacity-0 transition group-hover:opacity-100">
+            Click to open term details
+          </div>
+        </button>
+      );
+    };
+
+    const SheetRequirementBlock = ({ label, note, pct }) => (
+      <div className="mb-2">
+        <div className="flex items-center justify-between text-[0.7rem]">
+          <span>{label}</span>
+          <span className="rounded-full border px-2 py-0.5 text-[0.65rem]">
+            {Math.round(pct)}%
+          </span>
+        </div>
+        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+          <div className="h-full bg-slate-900" style={{ width: `${pct}%` }} />
+        </div>
+        {note && <div className="mt-0.5 text-[0.65rem] text-slate-500">{note}</div>}
+      </div>
+    );
+
+    const SheetFlagRow = ({ label, value }) => (
+      <div className="mb-1 flex items-center justify-between text-[0.7rem]">
+        <span>{label}</span>
+        <span className="rounded-full border bg-slate-50 px-2 py-0.5 text-[0.65rem] text-slate-600">
+          {value}
+        </span>
+      </div>
+    );
+
+    const MiniRequirementRow = ({ label, req }) => (
+      <div className="mb-2">
+        <div className="flex items-center justify-between text-[0.7rem]">
+          <span>{label}</span>
+          <span className="text-[0.65rem]">
+            {req.have}/{req.targetCount}
+          </span>
+        </div>
+        <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-slate-200">
+          <div
+            className="h-full bg-slate-900"
+            style={{ width: `${Math.min(req.pct * 100, 100)}%` }}
+          />
+        </div>
+      </div>
+    );
+
+    // --- Term detail modal (card-style view for one term) ---
+    function TermDetailModal({ term, byId, catalog, onClose, updateTermCourse, updateSlot, addSlot }) {
+      if (!term) return null;
+
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-4 shadow-xl">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <div className="text-xs uppercase tracking-wide text-slate-500">Term details</div>
+                <div className="text-sm font-semibold">{term.label}</div>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-full border px-2 py-1 text-xs hover:bg-slate-50"
+              >
+                ✕ Close
+              </button>
+            </div>
+
+            {term.isAbroad && (
+              <div className="mb-3 flex items-center justify-between rounded-xl bg-indigo-50 px-3 py-2 text-xs">
+                <span className="font-medium text-indigo-700">Marked as Study Abroad</span>
+                <Pill className="border-indigo-500 text-indigo-600">Study Abroad</Pill>
+              </div>
+            )}
+
+            <div className="space-y-3 text-xs">
+              {term.slots.map((slot, i) => {
+                const backups = slot.backups || [];
+                return (
+                  <div key={i} className="rounded-xl border p-3">
+                    <div className="mb-1 flex items-center justify-between">
+                      <div className="text-xs font-medium">Slot {i + 1}</div>
+                      {slot.primary && (
+                        <span className="text-[0.65rem] text-slate-500">
+                          {byId[slot.primary]?.code}
+                        </span>
+                      )}
+                    </div>
+
+                    <CourseSelect
+                      catalog={catalog}
+                      value={slot.primary}
+                      onChange={(cid) =>
+                        updateTermCourse(term.id, i, "primary", cid || undefined)
+                      }
+                      placeholder="Select primary course"
+                    />
+
+                    {backups.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        <div className="text-[0.65rem] font-medium text-slate-500">
+                          Backup courses
+                        </div>
+                        {backups.map((bid, bi) => (
+                          <div key={bi} className="flex items-center gap-1">
+                            <div className="flex-1">
+                              <CourseSelect
+                                catalog={catalog}
+                                value={bid}
+                                onChange={(cid) =>
+                                  updateSlot(term.id, i, (s) => {
+                                    const arr = [...(s.backups || [])];
+                                    arr[bi] = cid || "";
+                                    return { ...s, backups: arr };
+                                  })
+                                }
+                                placeholder={`Backup #${bi + 1}`}
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              className="rounded-full border px-2 text-[0.6rem]"
+                              onClick={() =>
+                                updateSlot(term.id, i, (s) => {
+                                  const arr = [...(s.backups || [])];
+                                  arr.splice(bi, 1);
+                                  return { ...s, backups: arr };
+                                })
+                              }
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        className="text-[0.65rem] text-indigo-600 hover:underline"
+                        onClick={() => addSlot(term.id)}
+                      >
+                        + Add course slot
+                      </button>
+                      <button
+                        type="button"
+                        className="text-[0.65rem] text-indigo-600 hover:underline"
+                        onClick={() =>
+                          updateSlot(term.id, i, (s) => ({
+                            ...s,
+                            backups: [...(s.backups || []), ""].slice(0, 5),
+                          }))
+                        }
+                      >
+                        + Add backup
+                      </button>
+                      <div className="flex flex-wrap gap-1">
+                        {slot.primary &&
+                          byId[slot.primary]?.tags.map((tag) => (
+                            <Pill
+                              key={tag}
+                              className="border-slate-300 bg-slate-50 text-[0.65rem]"
+                            >
+                              {tag}
+                            </Pill>
+                          ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-3 flex justify-center">
+              <button
+                type="button"
+                onClick={() => addSlot(term.id)}
+                className="rounded-full border bg-slate-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+              >
+                + Add another course slot
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // --- Main App ---
+    function WellesleyPlanner() {
+      const [requirements] = useState(seedRequirements);
+      const [catalog, setCatalog] = useState(seedCourses);
+      const [terms, setTerms] = useState(defaultTerms);
+      const [accelerated, setAccelerated] = useState(false);
+      const [studyAbroadTermId, setStudyAbroadTermId] = useState("");
+      const [activeTermId, setActiveTermId] = useState(null);
+
+      const [newCourseTags, setNewCourseTags] = useState([]);
+      const [newCourseDepts, setNewCourseDepts] = useState([]);
+      const [newCourseSource, setNewCourseSource] = useState("Wellesley");
+
+      const toggleNewCourseTag = (id) => {
+        setNewCourseTags((prev) =>
+          prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
+        );
+      };
+
+      const toggleNewCourseDept = (name) => {
+        setNewCourseDepts((prev) =>
+          prev.includes(name) ? prev.filter((d) => d !== name) : [...prev, name]
+        );
+      };
+
+      const termsWithAbroad = useMemo(
+        () =>
+          terms.map((t) => ({
+            ...t,
+            isAbroad: studyAbroadTermId === t.id,
+          })),
+        [terms, studyAbroadTermId]
+      );
+
+      const termByIdRaw = (id) => termsWithAbroad.find((t) => t.id === id) || null;
+
+      const y1Fall   = termByIdRaw("Y1-F");
+      const y1Spring = termByIdRaw("Y1-S");
+      const y1Winter = termByIdRaw("Y1-W");
+      const y1Summer = termByIdRaw("Y1-U");
+
+      const y2Fall   = termByIdRaw("Y2-F");
+      const y2Spring = termByIdRaw("Y2-S");
+      const y2Winter = termByIdRaw("Y2-W");
+      const y2Summer = termByIdRaw("Y2-U");
+
+      const y3Fall   = termByIdRaw("Y3-F");
+      const y3Spring = termByIdRaw("Y3-S");
+      const y3Winter = termByIdRaw("Y3-W");
+      const y3Summer = termByIdRaw("Y3-U");
+
+      const y4Fall   = termByIdRaw("Y4-F");
+      const y4Spring = termByIdRaw("Y4-S");
+      const y4Winter = termByIdRaw("Y4-W");
+      const y4Summer = termByIdRaw("Y4-U");
+
+      const progress = useMemo(() => {
+        const counts = Object.fromEntries(requirements.map((r) => [r.id, 0]));
+        let totalUnits = 0;
+        let level300 = 0;
+        const selected = new Set();
+        terms.forEach((t) =>
+          t.slots.forEach((s) => {
+            if (s.primary) selected.add(s.primary);
+          })
+        );
+        catalog.forEach((c) => {
+          if (selected.has(c.id)) {
+            totalUnits += c.credits;
+            if (c.level && c.level >= 300) level300 += 1;
+            c.tags.forEach((tag) => {
+              counts[tag] = (counts[tag] || 0) + 1;
+            });
+          }
+        });
+        counts["UNITS"] = totalUnits;
+        counts["300"] = level300;
+
+        const detail = requirements.map((r) => {
+          const have = counts[r.id] || 0;
+          const pct = Math.min(have / (r.targetCount || 1), 1);
+          return { ...r, have, pct };
+        });
+        const overall = detail.reduce((a, r) => a + r.pct, 0) / (detail.length || 1);
+
+        const c = (id) => counts[id] || 0;
+
+        const g1Units = c("LL") + c("ARTS");
+        const g1UnitsPct = Math.min(g1Units / 3, 1);
+        const g1LLPct = Math.min(c("LL") / 1, 1);
+        const g1ArtsPct = Math.min(c("ARTS") / 1, 1);
+        const g1 = Math.round(((g1UnitsPct + g1LLPct + g1ArtsPct) / 3) * 100);
+
+        const g2Units = c("SBA") + c("EC") + c("HST") + c("REP");
+        const g2UnitsPct = Math.min(g2Units / 3, 1);
+        const g2SBAPct = Math.min(c("SBA") / 1, 1);
+        const distinctEHR = ["EC", "HST", "REP"].filter((id) => c(id) > 0).length;
+        const g2DistinctPct = Math.min(distinctEHR / 2, 1);
+        const g2 = Math.round(((g2UnitsPct + g2SBAPct + g2DistinctPct) / 3) * 100);
+
+        const g3Units = c("MM") + c("NPS");
+        const g3UnitsPct = Math.min(g3Units / 3, 1);
+        const g3MMPct = Math.min(c("MM") / 1, 1);
+        const g3NPSPct = Math.min(c("NPS") / 1, 1);
+        const g3LABPct = Math.min(c("LAB") / 1, 1);
+        const g3 = Math.round(((g3UnitsPct + g3MMPct + g3NPSPct + g3LABPct) / 4) * 100);
+
+        return {
+          detail,
+          overall,
+          totalUnits,
+          counts,
+          dist3x3: { g1, g2, g3 },
+        };
+      }, [requirements, catalog, terms]);
+
+      const byId = useMemo(
+        () => Object.fromEntries(catalog.map((c) => [c.id, c])),
+        [catalog]
+      );
+
+      const updateTermCourse = (termId, slotIdx, key, courseId) => {
+        setTerms((prev) =>
+          prev.map((t) =>
+            t.id !== termId
+              ? t
+              : {
+                  ...t,
+                  slots: t.slots.map((s, i) =>
+                    i === slotIdx ? { ...s, [key]: courseId } : s
+                  ),
+                }
+          )
+        );
+      };
+
+      const updateSlot = (termId, slotIdx, updater) => {
+        setTerms((prev) =>
+          prev.map((t) =>
+            t.id !== termId
+              ? t
+              : {
+                  ...t,
+                  slots: t.slots.map((s, i) =>
+                    i === slotIdx ? updater(s || {}) : s
+                  ),
+                }
+          )
+        );
+      };
+
+      const addSlot = (termId) => {
+        setTerms((prev) =>
+          prev.map((t) =>
+            t.id !== termId
+              ? t
+              : {
+                  ...t,
+                  slots: [...t.slots, {}],
+                }
+          )
+        );
+      };
+
+      const addTerm = (year, seasonCode) => {
+        const id = `Y${year}-${seasonCode}`;
+        if (terms.some((t) => t.id === id)) return;
+        const seasonLabel = seasonCode === "W" ? "Winter" : "Summer";
+        const label = `Year ${year} • ${seasonLabel}`;
+        const newTerm = { id, label, slots: [{}, {}, {}, {}] };
+        setTerms((prev) => [...prev, newTerm]);
+      };
+
+      const handleAddCourse = (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const code = form.code.value.trim();
+        const title = form.title.value.trim();
+        if (!code || !title) return;
+
+        const credits = parseFloat(form.credits.value || "1");
+        const source = newCourseSource;
+        const level = parseInt(form.level.value || "100", 10);
+
+        let depts = [];
+        if (source === "Wellesley") {
+          depts = newCourseDepts.length ? [...newCourseDepts] : ["Unspecified Wellesley dept"];
+        } else {
+          const deptText = (form.dept?.value || "").trim();
+          if (deptText) depts = [deptText];
+        }
+
+        const id =
+          code.replace(/\s+/g, "-").toLowerCase() +
+          "-" +
+          Math.random().toString(36).slice(2, 7);
+
+        const tags = [...newCourseTags];
+
+        setCatalog((c) => [
+          ...c,
+          {
+            id,
+            code,
+            title,
+            credits: isNaN(credits) ? 1 : credits,
+            tags,
+            source,
+            level: isNaN(level) ? 100 : level,
+            depts,
+          },
+        ]);
+
+        form.reset();
+        setNewCourseTags([]);
+        setNewCourseDepts([]);
+      };
+
+      const distributionIds = ["LL","ARTS","SBA","EC","HST","REP","MM","NPS","LAB"];
+      const otherRequirements = progress.detail.filter(
+        (r) => !distributionIds.includes(r.id)
+      );
+
+      const activeTerm = activeTermId ? termByIdRaw(activeTermId) : null;
+      const maxYear = accelerated ? 3 : 4;
+
+      const getReq = (id) =>
+        progress.detail.find((d) => d.id === id) || { have: 0, targetCount: 1, pct: 0 };
+
+      return (
+        <div className="mx-auto max-w-6xl p-6">
+          {/* Header */}
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold">Wellesley 4-Year Planner — Integrated View</h1>
+              <p className="text-sm text-slate-600">
+                Spreadsheet as the main editor, with a card-style per-term overlay for details and backups.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
+              <button
+                onClick={() => setAccelerated((a) => !a)}
+                className={cx(
+                  "rounded-xl border px-3 py-2",
+                  accelerated && "bg-slate-900 text-white"
+                )}
+              >
+                {accelerated ? "3-Year Mode: ON" : "3-Year Mode: OFF"}
+              </button>
+              <select
+                value={studyAbroadTermId}
+                onChange={(e) => setStudyAbroadTermId(e.target.value)}
+                className="rounded-xl border px-3 py-2"
+              >
+                <option value="">Study Abroad Term: —</option>
+                {terms.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={() =>
+                  document.getElementById("catalog-section")?.scrollIntoView({ behavior: "smooth" })
+                }
+                className="rounded-xl border px-3 py-2"
+              >
+                Course Catalog Editor
+              </button>
+            </div>
+          </div>
+
+          {/* Quick progress chips at top */}
+          <div className="mb-4 flex flex-wrap gap-2 text-[0.7rem]">
+            <Pill>
+              {progress.totalUnits.toFixed(1)} / 32 units planned
+            </Pill>
+            <Pill>
+              Overall requirements progress: {fmtPct(progress.overall)}
+            </Pill>
+            <Pill>
+              300-level: {getReq("300").have} / {getReq("300").targetCount}
+            </Pill>
+          </div>
+
+          {/* Spreadsheet-style planner with integrated card overlay */}
+          <Section
+            title="Planner (Spreadsheet + Term Detail Overlay)"
+            subtitle="Click any term card to open the detailed card-style view for that term (primary + backups). Use the buttons at the bottom of each year to add Winter or Summer."
+          >
+            <div className="grid gap-4 text-xs lg:grid-cols-3">
+              {/* Left: years / terms */}
+              <div className="space-y-4 lg:col-span-2">
+                {/* First Year */}
+                <div className="rounded-2xl border bg-slate-50/60 p-3">
+                  <div className="mb-1 flex items-baseline justify-between">
+                    <div className="text-sm font-semibold">First Year</div>
+                    <div className="text-[0.7rem] text-slate-500">
+                      Shadow-graded fall; WRIT, QR/DL, language, early distributions.
+                    </div>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <LinkedTermSheetCard
+                      termLabel="🍁 Fall 2023 🍁"
+                      meta="Shadowgraded"
+                      term={y1Fall}
+                      byId={byId}
+                      onOpen={() => setActiveTermId("Y1-F")}
+                    />
+                    {y1Winter && (
+                      <LinkedTermSheetCard
+                        termLabel="❄️ Winter 202X ❄️"
+                        meta="Optional / experiential"
+                        term={y1Winter}
+                        byId={byId}
+                        onOpen={() => setActiveTermId("Y1-W")}
+                      />
+                    )}
+                    <LinkedTermSheetCard
+                      termLabel="🌸 Spring 202X 🌸"
+                      meta="Graded"
+                      term={y1Spring}
+                      byId={byId}
+                      onOpen={() => setActiveTermId("Y1-S")}
+                    />
+                    {y1Summer && (
+                      <LinkedTermSheetCard
+                        termLabel="☀️ Summer 202X ☀️"
+                        meta="Transfer / extra units"
+                        term={y1Summer}
+                        byId={byId}
+                        onOpen={() => setActiveTermId("Y1-U")}
+                      />
+                    )}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2 text-[0.7rem]">
+                    {!y1Winter && (
+                      <button
+                        type="button"
+                        onClick={() => addTerm(1, "W")}
+                        className="rounded-full border border-dashed px-3 py-1 hover:bg-slate-100"
+                      >
+                        + Add Winter term
+                      </button>
+                    )}
+                    {!y1Summer && (
+                      <button
+                        type="button"
+                        onClick={() => addTerm(1, "U")}
+                        className="rounded-full border border-dashed px-3 py-1 hover:bg-slate-100"
+                      >
+                        + Add Summer term
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Sophomore Year */}
+                <div className="rounded-2xl border bg-white/70 p-3">
+                  <div className="mb-1 flex items-baseline justify-between">
+                    <div className="text-sm font-semibold">Sophomore Year</div>
+                    <div className="text-[0.7rem] text-slate-500">
+                      Declare major, build 200-levels, finish core distributions.
+                    </div>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <LinkedTermSheetCard
+                      termLabel="🍁 Fall 202X 🍁"
+                      meta="Planned"
+                      term={y2Fall}
+                      byId={byId}
+                      onOpen={() => setActiveTermId("Y2-F")}
+                    />
+                    {y2Winter && (
+                      <LinkedTermSheetCard
+                        termLabel="❄️ Winter 202X ❄️"
+                        meta="Optional / experiential"
+                        term={y2Winter}
+                        byId={byId}
+                        onOpen={() => setActiveTermId("Y2-W")}
+                      />
+                    )}
+                    <LinkedTermSheetCard
+                      termLabel="🌸 Spring 202X 🌸"
+                      meta="Planned"
+                      term={y2Spring}
+                      byId={byId}
+                      onOpen={() => setActiveTermId("Y2-S")}
+                    />
+                    {y2Summer && (
+                      <LinkedTermSheetCard
+                        termLabel="☀️ Summer 202X ☀️"
+                        meta="Transfer / extra units"
+                        term={y2Summer}
+                        byId={byId}
+                        onOpen={() => setActiveTermId("Y2-U")}
+                      />
+                    )}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2 text-[0.7rem]">
+                    {!y2Winter && (
+                      <button
+                        type="button"
+                        onClick={() => addTerm(2, "W")}
+                        className="rounded-full border border-dashed px-3 py-1 hover:bg-slate-100"
+                      >
+                        + Add Winter term
+                      </button>
+                    )}
+                    {!y2Summer && (
+                      <button
+                        type="button"
+                        onClick={() => addTerm(2, "U")}
+                        className="rounded-full border border-dashed px-3 py-1 hover:bg-slate-100"
+                      >
+                        + Add Summer term
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Junior Year */}
+                {maxYear >= 3 && (
+                  <div className="rounded-2xl border bg-white/70 p-3">
+                    <div className="mb-1 flex items-baseline justify-between">
+                      <div className="text-sm font-semibold">Junior Year</div>
+                      <div className="text-[0.7rem] text-slate-500">
+                        Often includes study abroad + 200/300-level major work.
+                      </div>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                      <LinkedTermSheetCard
+                        termLabel="🍁 Fall 202X 🍁"
+                        meta="Major-heavy term"
+                        term={y3Fall}
+                        byId={byId}
+                        onOpen={() => setActiveTermId("Y3-F")}
+                      />
+                      {y3Winter && (
+                        <LinkedTermSheetCard
+                          termLabel="❄️ Winter 202X ❄️"
+                          meta="Optional / experiential"
+                          term={y3Winter}
+                          byId={byId}
+                          onOpen={() => setActiveTermId("Y3-W")}
+                        />
+                      )}
+                      <LinkedTermSheetCard
+                        termLabel="🌸 Spring 202X 🌸"
+                        meta="Study abroad?"
+                        term={y3Spring}
+                        byId={byId}
+                        onOpen={() => setActiveTermId("Y3-S")}
+                      />
+                      {y3Summer && (
+                        <LinkedTermSheetCard
+                          termLabel="☀️ Summer 202X ☀️"
+                          meta="Transfer / extra units"
+                          term={y3Summer}
+                          byId={byId}
+                          onOpen={() => setActiveTermId("Y3-U")}
+                        />
+                      )}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2 text-[0.7rem]">
+                      {!y3Winter && (
+                        <button
+                          type="button"
+                          onClick={() => addTerm(3, "W")}
+                          className="rounded-full border border-dashed px-3 py-1 hover:bg-slate-100"
+                        >
+                          + Add Winter term
+                        </button>
+                      )}
+                      {!y3Summer && (
+                        <button
+                          type="button"
+                          onClick={() => addTerm(3, "U")}
+                          className="rounded-full border border-dashed px-3 py-1 hover:bg-slate-100"
+                        >
+                          + Add Summer term
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Senior Year (hidden in 3-year mode) */}
+                {maxYear >= 4 && (
+                  <div className="rounded-2xl border bg-white/70 p-3">
+                    <div className="mb-1 flex items-baseline justify-between">
+                      <div className="text-sm font-semibold">Senior Year</div>
+                      <div className="text-[0.7rem] text-slate-500">
+                        Finish remaining 300-levels, distributions, and 32 units.
+                      </div>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                      <LinkedTermSheetCard
+                        termLabel="🍁 Fall 202X 🍁"
+                        meta="Capstone / seminar"
+                        term={y4Fall}
+                        byId={byId}
+                        onOpen={() => setActiveTermId("Y4-F")}
+                      />
+                      {y4Winter && (
+                        <LinkedTermSheetCard
+                          termLabel="❄️ Winter 202X ❄️"
+                          meta="Optional / experiential"
+                          term={y4Winter}
+                          byId={byId}
+                          onOpen={() => setActiveTermId("Y4-W")}
+                        />
+                      )}
+                      <LinkedTermSheetCard
+                        termLabel="🌸 Spring 202X 🌸"
+                        meta="Final term"
+                        term={y4Spring}
+                        byId={byId}
+                        onOpen={() => setActiveTermId("Y4-S")}
+                      />
+                      {y4Summer && (
+                        <LinkedTermSheetCard
+                          termLabel="☀️ Summer 202X ☀️"
+                          meta="Transfer / extra units"
+                          term={y4Summer}
+                          byId={byId}
+                          onOpen={() => setActiveTermId("Y4-U")}
+                        />
+                      )}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2 text-[0.7rem]">
+                      {!y4Winter && (
+                        <button
+                          type="button"
+                          onClick={() => addTerm(4, "W")}
+                          className="rounded-full border border-dashed px-3 py-1 hover:bg-slate-100"
+                        >
+                          + Add Winter term
+                        </button>
+                      )}
+                      {!y4Summer && (
+                        <button
+                          type="button"
+                          onClick={() => addTerm(4, "U")}
+                          className="rounded-full border border-dashed px-3 py-1 hover:bg-slate-100"
+                        >
+                          + Add Summer term
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right: requirements summary */}
+              <div className="space-y-3">
+                <div className="rounded-2xl border bg-white/80 p-3">
+                  <div className="mb-2 text-sm font-semibold">High-level Summary</div>
+                  <div className="flex flex-wrap gap-2 text-[0.7rem]">
+                    <span className="rounded-full border px-2 py-1">Prior Credits: 0</span>
+                    <span className="rounded-full border px-2 py-1">GPA: N/A</span>
+                    <span className="rounded-full border px-2 py-1">
+                      Units planned: {progress.totalUnits.toFixed(1)} / 32
+                    </span>
+                    <span className="rounded-full border px-2 py-1">
+                      300-level courses: {getReq("300").have} / {getReq("300").targetCount}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border bg-white/80 p-3 text-[0.7rem]">
+                  <div className="mb-2 text-sm font-semibold">Distribution Areas (3–3–3 model)</div>
+                  <SheetRequirementBlock
+                    label="Group 1: LL + ARTS"
+                    note="3 units total: at least 1 LL + 1 ARTS + 1 extra in either area."
+                    pct={progress.dist3x3.g1}
+                  />
+                  <SheetRequirementBlock
+                    label="Group 2: SBA + EC/HST/REP"
+                    note="3 units total: 1 SBA + 2 units from two of EC, HST, REP."
+                    pct={progress.dist3x3.g2}
+                  />
+                  <SheetRequirementBlock
+                    label="Group 3: MM + NPS + Lab"
+                    note="3 units total: 1 MM + 1 NPS + 1 extra (MM or NPS), with at least 1 lab unit."
+                    pct={progress.dist3x3.g3}
+                  />
+                </div>
+
+                <div className="rounded-2xl border bg-white/80 p-3 text-[0.7rem]">
+                  <div className="mb-2 text-sm font-semibold">Core Requirements</div>
+                  <MiniRequirementRow label="Writing (WRIT)" req={getReq("WRIT")} />
+                  <MiniRequirementRow label="Foreign Language (LANG)" req={getReq("LANG")} />
+                  <MiniRequirementRow label="Quantitative Reasoning (QR)" req={getReq("QR")} />
+                  <MiniRequirementRow label="Data Literacy (DL)" req={getReq("DL")} />
+                  <MiniRequirementRow label="Physical Education (PE)" req={getReq("PE")} />
+                  <MiniRequirementRow label="Experiential Learning (EXP)" req={getReq("EXP")} />
+                </div>
+
+                <div className="rounded-2xl border bg-white/80 p-3 text-[0.7rem]">
+                  <div className="mb-2 text-sm font-semibold">Degree-Level Checks</div>
+                  <SheetFlagRow label="One Major" value="Pending" />
+                  <SheetFlagRow
+                    label="18 Units outside 1 department"
+                    value="Check at end"
+                  />
+                  <SheetRequirementBlock
+                    label="32 Credits"
+                    note="Total units toward graduation"
+                    pct={Math.min(100, (progress.totalUnits / 32) * 100)}
+                  />
+                  <SheetFlagRow label="Degree Awarded?" value="Not yet" />
+                </div>
+
+                <div className="rounded-2xl border bg-white/80 p-3 text-[0.7rem]">
+                  <div className="mb-2 text-sm font-semibold">Major Progress (example)</div>
+                  <div className="mb-1 flex items-center justify-between">
+                    <span>Prefix</span>
+                    <span className="rounded-full border px-2 py-1">e.g. CS</span>
+                  </div>
+                  <div className="mb-1 flex items-center justify-between">
+                    <span>Credits Needed</span>
+                    <span className="rounded-full border px-2 py-1">N/A</span>
+                  </div>
+                  <div className="mb-1 flex items-center justify-between">
+                    <span>Credits Done</span>
+                    <span className="rounded-full border px-2 py-1">0</span>
+                  </div>
+                  <div className="mt-1 italic text-slate-500">
+                    List major classes and keep an eye on 300-levels here.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Section>
+
+          {/* Course Catalog */}
+          <Section
+            id="catalog-section"
+            title="Course Catalog"
+            subtitle="Prototype-only catalog; entries appear in the planner’s dropdowns. Requirement tags and departments are chosen from Wellesley’s structures (with free typing for other institutions)."
+          >
+            <form
+              onSubmit={handleAddCourse}
+              className="mb-4 grid gap-2 text-xs md:grid-cols-6"
+            >
+              <input
+                name="code"
+                className="rounded-lg border px-2 py-1"
+                placeholder="Code (e.g. CS 111)"
+              />
+              <input
+                name="title"
+                className="md:col-span-2 rounded-lg border px-2 py-1"
+                placeholder="Title"
+              />
+              <input
+                name="credits"
+                className="rounded-lg border px-2 py-1"
+                placeholder="Units (e.g. 1)"
+              />
+              <div className="md:col-span-3 rounded-lg border bg-slate-50 px-2 py-2">
+                <div className="mb-1 text-[0.7rem] font-semibold">
+                  Requirement tags (multi-select)
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {requirementTagOptions.map((opt) => {
+                    const active = newCourseTags.includes(opt.id);
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => toggleNewCourseTag(opt.id)}
+                        className={cx(
+                          "rounded-full border px-2 py-1 text-[0.65rem]",
+                          active
+                            ? "bg-slate-900 text-white border-slate-900"
+                            : "bg-white text-slate-700 border-slate-300"
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <select
+                name="source"
+                value={newCourseSource}
+                onChange={(e) => {
+                  setNewCourseSource(e.target.value);
+                  setNewCourseDepts([]);
+                }}
+                className="rounded-lg border px-2 py-1"
+              >
+                <option>Wellesley</option>
+                <option>MIT</option>
+                <option>Babson</option>
+                <option>Olin</option>
+                <option>StudyAbroad</option>
+                <option>Transfer</option>
+                <option>AP/IB</option>
+                <option>Other</option>
+              </select>
+
+              <input
+                name="level"
+                className="rounded-lg border px-2 py-1"
+                placeholder="Level (100/200/300)"
+              />
+
+              {newCourseSource === "Wellesley" ? (
+                <div className="md:col-span-3 rounded-lg border bg-slate-50 px-2 py-2">
+                  <div className="mb-1 text-[0.7rem] font-semibold">
+                    Wellesley department(s) (multi-select)
+                  </div>
+                  <div className="flex max-h-28 flex-wrap gap-1 overflow-y-auto pr-1">
+                    {wellesleyDeptOptions.map((name) => {
+                      const active = newCourseDepts.includes(name);
+                      return (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => toggleNewCourseDept(name)}
+                          className={cx(
+                            "rounded-full border px-2 py-1 text-[0.65rem]",
+                            active
+                              ? "bg-slate-900 text-white border-slate-900"
+                              : "bg-white text-slate-700 border-slate-300"
+                          )}
+                        >
+                          {name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <input
+                  name="dept"
+                  className="md:col-span-3 rounded-lg border px-2 py-1"
+                  placeholder="Dept / program (e.g. MIT EECS)"
+                />
+              )}
+
+              <button
+                type="submit"
+                className="rounded-lg border bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800 md:col-span-2"
+              >
+                + Add to catalog
+              </button>
+            </form>
+
+            <div className="grid gap-3 text-sm md:grid-cols-2 lg:grid-cols-3">
+              {catalog.map((c) => {
+                const deptLabel = c.depts?.length
+                  ? c.depts.join(" / ")
+                  : (c.dept || "Dept N/A");
+                return (
+                  <div key={c.id} className="rounded-xl border bg-white p-3">
+                    <div className="mb-1 flex items-center justify-between">
+                      <div className="font-medium">{c.code}</div>
+                      <Pill className="border-slate-300 bg-slate-50 text-[0.65rem]">
+                        {c.source}
+                      </Pill>
+                    </div>
+                    <div className="mb-1 text-xs">{c.title}</div>
+                    <div className="mb-1 text-[0.65rem] text-slate-500">
+                      {deptLabel} • {c.credits} unit • {c.level}-level
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-1 text-[0.65rem] text-slate-600">
+                      {c.tags.map((t) => (
+                        <Pill key={t} className="border-slate-300">
+                          {t}
+                        </Pill>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Section>
+
+          {/* Term detail modal (card-style overlay) */}
+          <TermDetailModal
+            term={activeTerm}
+            byId={byId}
+            catalog={catalog}
+            onClose={() => setActiveTermId(null)}
+            updateTermCourse={updateTermCourse}
+            updateSlot={updateSlot}
+            addSlot={addSlot}
+          />
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<WellesleyPlanner />);
+  </script>
+</body>
+</html>
