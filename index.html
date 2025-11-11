@@ -1,0 +1,1242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Wellesley 4-Year Planner – Browser Prototype</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Tailwind CDN for quick styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 text-slate-900">
+  <div id="root" class="min-h-screen"></div>
+
+  <!-- React + ReactDOM + Babel (for quick in-browser JSX) -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useState, useMemo } = React;
+
+    const cx = (...classes) => classes.filter(Boolean).join(" ");
+    const fmtPct = (x) => `${Math.round(x * 100)}%`;
+
+    const seedRequirements = [
+      { id: "UNITS", label: "Total Units (32 required)", targetCount: 32 },
+      { id: "WRIT", label: "First-Year Writing (WRIT)", targetCount: 1 },
+      { id: "LANG", label: "Foreign Language Requirement", targetCount: 2 },
+      { id: "QR",   label: "Quantitative Reasoning (QR component)", targetCount: 1 },
+      { id: "DL",   label: "Data Literacy (DL component)", targetCount: 1 },
+      { id: "LL",   label: "Language and Literature (LL)", targetCount: 1 },
+      { id: "ARTS", label: "Visual Arts, Music, Theatre, Film, and Video (ARTS)", targetCount: 1 },
+      { id: "SBA", label: "Social and Behavioral Analysis (SBA)", targetCount: 1 },
+      { id: "EC",  label: "Epistemology and Cognition (EC)", targetCount: 1 },
+      { id: "HST", label: "Historical Studies (HST)", targetCount: 1 },
+      { id: "REP", label: "Religion, Ethics, and Moral Philosophy (REP)", targetCount: 1 },
+      { id: "MM",  label: "Mathematical Modeling and Problem Solving (MM)", targetCount: 1 },
+      { id: "NPS", label: "Natural and Physical Science (NPS)", targetCount: 1 },
+      { id: "LAB", label: "Lab unit within Area 3", targetCount: 1 },
+      { id: "300", label: "300-level Courses", targetCount: 4 },
+      { id: "PE",  label: "Physical Education", targetCount: 1 },
+      { id: "EXP", label: "Experiential Learning units (ELR)", targetCount: 2 },
+    ];
+
+    const seedCourses = [
+      { id: "writ-101", code: "WRIT 101", title: "First-Year Writing", credits: 1,
+        tags: ["WRIT"], level: 100, depts: ["Writing Program"], source: "Wellesley" },
+      { id: "qr-140", code: "QR 140", title: "Intro Quantitative Reasoning", credits: 1,
+        tags: ["QR"], level: 100, depts: ["Quantitative Reasoning"], source: "Wellesley" },
+      { id: "stat-160", code: "STAT 160", title: "Intro to Data Literacy", credits: 1,
+        tags: ["DL","MM"], level: 100, depts: ["Statistics"], source: "Wellesley" },
+      { id: "chem-105", code: "CHEM 105", title: "Fundamentals of Chemistry (Lab)", credits: 1,
+        tags: ["NPS","LAB"], level: 100, depts: ["Chemistry"], source: "Wellesley" },
+      { id: "cs-111", code: "CS 111", title: "Computer Programming", credits: 1,
+        tags: ["MM"], level: 100, depts: ["Computer Science"], source: "Wellesley" },
+      { id: "hist-210", code: "HIST 210", title: "Global History Since 1800", credits: 1,
+        tags: ["HST"], level: 200, depts: ["History"], source: "Wellesley" },
+      { id: "rel-205", code: "REL 205", title: "Religion & Philosophy", credits: 1,
+        tags: ["REP"], level: 200, depts: ["Religion"], source: "Wellesley" },
+      { id: "art-140", code: "ART 140", title: "Intro to Studio Practice", credits: 1,
+        tags: ["ARTS"], level: 100, depts: ["Art"], source: "Wellesley" },
+      { id: "span-201", code: "SPAN 201", title: "Intermediate Spanish", credits: 1,
+        tags: ["LANG","LL"], level: 200, depts: ["Spanish"], source: "Wellesley" },
+      { id: "mit-6.100a", code: "MIT 6.100A", title: "Intro to Python (MIT)", credits: 1,
+        tags: ["MM"], level: 100, depts: ["MIT EECS"], source: "MIT" },
+    ];
+
+    const years = [1, 2, 3, 4];
+    const defaultTerms = years.flatMap((y) => ([
+      { id: `Y${y}-F`, label: `Year ${y} • Fall`, slots: [{}, {}, {}, {}] },
+      { id: `Y${y}-S`, label: `Year ${y} • Spring`, slots: [{}, {}, {}, {}] },
+    ]));
+
+    const seasonOrder = { F: 1, W: 2, S: 3, U: 4 };
+    const sortTerms = (terms) => {
+      return [...terms].sort((a, b) => {
+        const [aY, aS] = (a.id || "").split("-");
+        const [bY, bS] = (b.id || "").split("-");
+        const ya = parseInt(aY?.[1] || "9", 10);
+        const yb = parseInt(bY?.[1] || "9", 10);
+        const sa = seasonOrder[aS] || 9;
+        const sb = seasonOrder[bS] || 9;
+        if (ya !== yb) return ya - yb;
+        return sa - sb;
+      });
+    };
+
+    const wellesleyDeptOptions = [
+      "Africana Studies","American Studies","Anthropology","Architecture","Art","Art History",
+      "Astronomy","Biochemistry","Biological Sciences","Chemical Physics","Chemistry",
+      "Cinema and Media Studies","Classical Studies","Cognitive and Linguistic Science",
+      "Comparative Literature","Computer Science","East Asian Languages and Cultures",
+      "East Asian Studies","Economics","Education","Engineering","English","Environmental Studies",
+      "French","Geosciences","German","Greek","Hebrew","History","International Relations",
+      "Italian Studies","Japanese","Jewish Studies","Korean","Latin","Latin American Studies",
+      "Linguistics","Mathematics","Media Arts & Sciences","Middle Eastern Studies","Music",
+      "Neuroscience","Peace and Justice Studies","Philosophy","Physical Education","Physics",
+      "Political Science","Psychology","Quantitative Reasoning","Religion","Russian","Sociology",
+      "South Asia Studies","Spanish","Statistics","Theatre Studies","Women’s and Gender Studies",
+      "Writing Program",
+    ];
+
+    const requirementTagOptions = [
+      { id: "WRIT", label: "First-Year Writing (WRIT)" },
+      { id: "LANG", label: "Foreign Language (LANG)" },
+      { id: "QR",   label: "Quantitative Reasoning (QR)" },
+      { id: "DL",   label: "Data Literacy (DL)" },
+      { id: "LL",   label: "Language & Literature (LL)" },
+      { id: "ARTS", label: "Visual Arts / Music / Theatre / Film / Video (ARTS)" },
+      { id: "SBA",  label: "Social & Behavioral Analysis (SBA)" },
+      { id: "EC",   label: "Epistemology & Cognition (EC)" },
+      { id: "HST",  label: "Historical Studies (HST)" },
+      { id: "REP",  label: "Religion, Ethics & Moral Philosophy (REP)" },
+      { id: "MM",   label: "Mathematical Modeling & Problem Solving (MM)" },
+      { id: "NPS",  label: "Natural & Physical Science (NPS)" },
+      { id: "LAB",  label: "Lab unit (LAB)" },
+      { id: "300",  label: "300-level course (300)" },
+      { id: "PE",   label: "Physical Education (PE)" },
+      { id: "EXP",  label: "Experiential Learning (EXP)" },
+    ];
+
+    const Pill = ({ className, children }) => (
+      <span className={cx("inline-flex items-center rounded-full border px-2 py-1 text-xs", className)}>
+        {children}
+      </span>
+    );
+
+    const Section = ({ title, right, subtitle, id, children }) => (
+      <section id={id} className="mb-6 rounded-2xl border bg-white/70 p-4 shadow-sm">
+        <header className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">{title}</h2>
+            {subtitle && <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>}
+          </div>
+          {right}
+        </header>
+        {children}
+      </section>
+    );
+
+    const CourseSelect = ({ catalog, value, onChange, placeholder }) => (
+      <select
+        className="w-full rounded-lg border px-2 py-1 text-xs"
+        value={value || ""}
+        onChange={(e) => onChange(e.target.value || null)}
+      >
+        <option value="">{placeholder || "Select course"}</option>
+        {catalog.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.code} — {c.title}
+          </option>
+        ))}
+      </select>
+    );
+
+    const SheetRow = ({ placeholderCode, placeholderName, tags }) => (
+      <tr>
+        <td className="border-b px-2 py-1">
+          <input className="w-full rounded-md border px-1 py-0.5 text-[0.65rem]" placeholder={placeholderCode} />
+        </td>
+        <td className="border-b px-2 py-1">
+          <input className="w-full rounded-md border px-1 py-0.5 text-[0.65rem]" placeholder={placeholderName} />
+        </td>
+        <td className="border-b px-2 py-1">
+          <input className="w-full rounded-md border px-1 py-0.5 text-[0.65rem]" placeholder="1.0" />
+        </td>
+        <td className="border-b px-2 py-1">
+          {tags && tags.length ? (
+            <div className="flex flex-wrap gap-1">
+              {tags.map((t) => (
+                <span
+                  key={t}
+                  className="inline-flex items-center rounded-full border bg-slate-50 px-2 py-0.5 text-[0.6rem]"
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <input
+              className="w-full rounded-md border px-1 py-0.5 text-[0.65rem]"
+              placeholder="Tags / notes"
+            />
+          )}
+        </td>
+      </tr>
+    );
+
+    const TermSheetCard = ({ termLabel, meta, rows = 0, children }) => {
+      const childCount = React.Children.count(children);
+      const emptyRows = Array.from({ length: Math.max(0, rows - childCount) });
+      return (
+        <div className="rounded-2xl border bg-white p-3">
+          <div className="mb-1 flex items-center justify-between">
+            <div className="text-xs font-semibold">{termLabel}</div>
+            {meta && <div className="text-[0.65rem] text-slate-500">{meta}</div>}
+          </div>
+          <div className="overflow-hidden rounded-xl border">
+            <table className="w-full border-collapse text-[0.65rem]">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="border-b px-2 py-1 text-left font-medium text-slate-600">Subject #</th>
+                  <th className="border-b px-2 py-1 text-left font-medium text-slate-600">Name</th>
+                  <th className="border-b px-2 py-1 text-left font-medium text-slate-600">Units</th>
+                  <th className="border-b px-2 py-1 text-left font-medium text-slate-600">Req Tags / Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {children}
+                {emptyRows.map((_, i) => <SheetRow key={`empty-${i}`} />)}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    };
+
+    const LinkedTermSheetCard = ({ termLabel, meta, term, byId }) => {
+      const slots = term ? term.slots : Array.from({ length: 4 }, () => ({}));
+      return (
+        <div className="rounded-2xl border bg-white p-3">
+          <div className="mb-1 flex items-center justify-between">
+            <div className="text-xs font-semibold">{termLabel}</div>
+            {meta && <div className="text-[0.65rem] text-slate-500">{meta}</div>}
+          </div>
+          <div className="overflow-hidden rounded-xl border">
+            <table className="w-full border-collapse text-[0.65rem]">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="border-b px-2 py-1 text-left font-medium text-slate-600">Subject #</th>
+                  <th className="border-b px-2 py-1 text-left font-medium text-slate-600">Name</th>
+                  <th className="border-b px-2 py-1 text-left font-medium text-slate-600">Units</th>
+                  <th className="border-b px-2 py-1 text-left font-medium text-slate-600">Req Tags / Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {slots.map((slot, i) => {
+                  const primary = slot.primary ? byId[slot.primary] : null;
+                  const backups = slot.backups || [];
+                  const backupCourses = backups.map((id) => byId[id]).filter(Boolean);
+
+                  return (
+                    <tr key={i}>
+                      <td className="border-b px-2 py-1 align-top">
+                        <div className="text-[0.65rem] font-medium">
+                          {primary ? primary.code : "—"}
+                        </div>
+                        {backupCourses.length > 0 && (
+                          <div className="mt-0.5 text-[0.6rem] text-slate-500">
+                            Backup: {backupCourses.map((b) => b.code).join(", ")}
+                          </div>
+                        )}
+                      </td>
+                      <td className="border-b px-2 py-1 align-top">
+                        <div className="text-[0.65rem]">
+                          {primary ? primary.title : "Empty slot"}
+                        </div>
+                      </td>
+                      <td className="border-b px-2 py-1 align-top">
+                        {primary ? primary.credits.toFixed(1) : "—"}
+                      </td>
+                      <td className="border-b px-2 py-1 align-top">
+                        {primary && primary.tags?.length ? (
+                          <div className="flex flex-wrap gap-1">
+                            {primary.tags.map((t) => (
+                              <span
+                                key={t}
+                                className="inline-flex items-center rounded-full border bg-slate-50 px-2 py-0.5 text-[0.6rem]"
+                              >
+                                {t}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-[0.6rem] text-slate-400">No tags</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    };
+
+    const OptionalTermSheetCard = ({ termLabel, meta, rows = 0, placeholder, children }) => {
+      const [open, setOpen] = useState(false);
+      if (!open) {
+        return (
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="flex h-full w-full items-center justify-center rounded-2xl border border-dashed bg-slate-50 text-[0.7rem] text-slate-500 hover:bg-slate-100"
+          >
+            + {placeholder || "Add optional term"}
+          </button>
+        );
+      }
+      return (
+        <TermSheetCard termLabel={termLabel} meta={meta} rows={rows}>
+          {children}
+        </TermSheetCard>
+      );
+    };
+
+    const SheetRequirementBlock = ({ label, note, pct }) => (
+      <div className="mb-2">
+        <div className="flex items-center justify-between text-[0.7rem]">
+          <span>{label}</span>
+          <span className="rounded-full border px-2 py-0.5 text-[0.65rem]">
+            {Math.round(pct)}%
+          </span>
+        </div>
+        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+          <div className="h-full bg-slate-900" style={{ width: `${pct}%` }} />
+        </div>
+        {note && <div className="mt-0.5 text-[0.65rem] text-slate-500">{note}</div>}
+      </div>
+    );
+
+    const SheetFlagRow = ({ label, value }) => (
+      <div className="mb-1 flex items-center justify-between text-[0.7rem]">
+        <span>{label}</span>
+        <span className="rounded-full border bg-slate-50 px-2 py-0.5 text-[0.65rem] text-slate-600">
+          {value}
+        </span>
+      </div>
+    );
+
+    function WellesleyPlanner() {
+      const [requirements] = useState(seedRequirements);
+      const [catalog, setCatalog] = useState(seedCourses);
+      const [terms, setTerms] = useState(defaultTerms);
+      const [accelerated, setAccelerated] = useState(false);
+      const [studyAbroadTermId, setStudyAbroadTermId] = useState("");
+      const [mode, setMode] = useState("cards");
+
+      const [extraYear, setExtraYear] = useState("1");
+      const [extraSeason, setExtraSeason] = useState("Winter");
+
+      const [newCourseTags, setNewCourseTags] = useState([]);
+      const [newCourseDepts, setNewCourseDepts] = useState([]);
+      const [newCourseSource, setNewCourseSource] = useState("Wellesley");
+
+      const toggleNewCourseTag = (id) => {
+        setNewCourseTags((prev) =>
+          prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
+        );
+      };
+
+      const toggleNewCourseDept = (name) => {
+        setNewCourseDepts((prev) =>
+          prev.includes(name) ? prev.filter((d) => d !== name) : [...prev, name]
+        );
+      };
+
+      const visibleTerms = useMemo(() => {
+        const filtered = terms.filter((t) => {
+          const year = parseInt((t.id || "Y4")[1] || "4", 10);
+          return year <= (accelerated ? 3 : 4);
+        });
+        return sortTerms(filtered);
+      }, [accelerated, terms]);
+
+      const termsWithAbroad = useMemo(
+        () => visibleTerms.map((t) => ({ ...t, isAbroad: studyAbroadTermId === t.id })),
+        [visibleTerms, studyAbroadTermId]
+      );
+
+      // NEW: group terms by year for card view (one line per year)
+      const groupedCardTerms = useMemo(() => {
+        const groups = {};
+        termsWithAbroad.forEach((t) => {
+          const match = (t.id || "").match(/^Y(\d)-([FWSU])/);
+          if (!match) return;
+          const year = parseInt(match[1], 10);
+          const season = match[2];
+          if (!groups[year]) groups[year] = [];
+          groups[year].push({ ...t, _seasonOrder: seasonOrder[season] || 99 });
+        });
+        Object.keys(groups).forEach((y) => {
+          groups[y].sort((a, b) => a._seasonOrder - b._seasonOrder);
+        });
+        return groups;
+      }, [termsWithAbroad]);
+
+      const termById = (id) => terms.find((t) => t.id === id) || null;
+
+      const y1Fall   = termById("Y1-F");
+      const y1Spring = termById("Y1-S");
+      const y2Fall   = termById("Y2-F");
+      const y2Spring = termById("Y2-S");
+      const y3Fall   = termById("Y3-F");
+      const y3Spring = termById("Y3-S");
+      const y4Fall   = termById("Y4-F");
+      const y4Spring = termById("Y4-S");
+
+      const progress = useMemo(() => {
+        const counts = Object.fromEntries(requirements.map((r) => [r.id, 0]));
+        let totalUnits = 0;
+        let level300 = 0;
+        const selected = new Set();
+        terms.forEach((t) =>
+          t.slots.forEach((s) => {
+            if (s.primary) selected.add(s.primary);
+          })
+        );
+        catalog.forEach((c) => {
+          if (selected.has(c.id)) {
+            totalUnits += c.credits;
+            if (c.level && c.level >= 300) level300 += 1;
+            c.tags.forEach((tag) => {
+              counts[tag] = (counts[tag] || 0) + 1;
+            });
+          }
+        });
+        counts["UNITS"] = totalUnits;
+        counts["300"] = level300;
+
+        const detail = requirements.map((r) => {
+          const have = counts[r.id] || 0;
+          const pct = Math.min(have / (r.targetCount || 1), 1);
+          return { ...r, have, pct };
+        });
+        const overall = detail.reduce((a, r) => a + r.pct, 0) / (detail.length || 1);
+
+        const c = (id) => counts[id] || 0;
+
+        const g1Units = c("LL") + c("ARTS");
+        const g1UnitsPct = Math.min(g1Units / 3, 1);
+        const g1LLPct = Math.min(c("LL") / 1, 1);
+        const g1ArtsPct = Math.min(c("ARTS") / 1, 1);
+        const g1 = Math.round(((g1UnitsPct + g1LLPct + g1ArtsPct) / 3) * 100);
+
+        const g2Units = c("SBA") + c("EC") + c("HST") + c("REP");
+        const g2UnitsPct = Math.min(g2Units / 3, 1);
+        const g2SBAPct = Math.min(c("SBA") / 1, 1);
+        const distinctEHR = ["EC", "HST", "REP"].filter((id) => c(id) > 0).length;
+        const g2DistinctPct = Math.min(distinctEHR / 2, 1);
+        const g2 = Math.round(((g2UnitsPct + g2SBAPct + g2DistinctPct) / 3) * 100);
+
+        const g3Units = c("MM") + c("NPS");
+        const g3UnitsPct = Math.min(g3Units / 3, 1);
+        const g3MMPct = Math.min(c("MM") / 1, 1);
+        const g3NPSPct = Math.min(c("NPS") / 1, 1);
+        const g3LABPct = Math.min(c("LAB") / 1, 1);
+        const g3 = Math.round(((g3UnitsPct + g3MMPct + g3NPSPct + g3LABPct) / 4) * 100);
+
+        return {
+          detail,
+          overall,
+          totalUnits,
+          counts,
+          dist3x3: { g1, g2, g3 },
+        };
+      }, [requirements, catalog, terms]);
+
+      const byId = useMemo(
+        () => Object.fromEntries(catalog.map((c) => [c.id, c])),
+        [catalog]
+      );
+
+      const updateTermCourse = (termId, slotIdx, key, courseId) => {
+        setTerms((prev) =>
+          prev.map((t) =>
+            t.id !== termId
+              ? t
+              : {
+                  ...t,
+                  slots: t.slots.map((s, i) =>
+                    i === slotIdx ? { ...s, [key]: courseId } : s
+                  ),
+                }
+          )
+        );
+      };
+
+      const updateSlot = (termId, slotIdx, updater) => {
+        setTerms((prev) =>
+          prev.map((t) =>
+            t.id !== termId
+              ? t
+              : {
+                  ...t,
+                  slots: t.slots.map((s, i) =>
+                    i === slotIdx ? updater(s || {}) : s
+                  ),
+                }
+          )
+        );
+      };
+
+      const addExtraTerm = () => {
+        const year = parseInt(extraYear, 10);
+        if (isNaN(year) || year < 1 || year > 4) return;
+        const code = extraSeason === "Winter" ? "W" : "U";
+        const id = `Y${year}-${code}`;
+        if (terms.some((t) => t.id === id)) return;
+        const label = `Year ${year} • ${extraSeason}`;
+        const newTerm = { id, label, slots: [{}, {}, {}, {}] };
+        setTerms((prev) => [...prev, newTerm]);
+      };
+
+      const handleAddCourse = (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const code = form.code.value.trim();
+        const title = form.title.value.trim();
+        if (!code || !title) return;
+
+        const credits = parseFloat(form.credits.value || "1");
+        const source = newCourseSource;
+        const level = parseInt(form.level.value || "100", 10);
+
+        let depts = [];
+        if (source === "Wellesley") {
+          depts = newCourseDepts.length ? [...newCourseDepts] : ["Unspecified Wellesley dept"];
+        } else {
+          const deptText = (form.dept?.value || "").trim();
+          if (deptText) depts = [deptText];
+        }
+
+        const id =
+          code.replace(/\s+/g, "-").toLowerCase() +
+          "-" +
+          Math.random().toString(36).slice(2, 7);
+
+        const tags = [...newCourseTags];
+
+        setCatalog((c) => [
+          ...c,
+          {
+            id,
+            code,
+            title,
+            credits: isNaN(credits) ? 1 : credits,
+            tags,
+            source,
+            level: isNaN(level) ? 100 : level,
+            depts,
+          },
+        ]);
+
+        form.reset();
+        setNewCourseTags([]);
+        setNewCourseDepts([]);
+      };
+
+      const distributionIds = ["LL","ARTS","SBA","EC","HST","REP","MM","NPS","LAB"];
+      const otherRequirements = progress.detail.filter(
+        (r) => !distributionIds.includes(r.id)
+      );
+
+      return (
+        <div className="mx-auto max-w-6xl p-6">
+          {/* Header */}
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold">Wellesley 4-Year Planner — Browser Prototype</h1>
+              <p className="text-sm text-slate-600">
+                Two linked views (Card & Spreadsheet) sharing one underlying 4-year plan.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
+              <button
+                onClick={() => setAccelerated((a) => !a)}
+                className={cx(
+                  "rounded-xl border px-3 py-2",
+                  accelerated && "bg-slate-900 text-white"
+                )}
+              >
+                {accelerated ? "3-Year Mode: ON" : "3-Year Mode: OFF"}
+              </button>
+              <select
+                value={studyAbroadTermId}
+                onChange={(e) => setStudyAbroadTermId(e.target.value)}
+                className="rounded-xl border px-3 py-2"
+              >
+                <option value="">Study Abroad Term: —</option>
+                {terms.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={() =>
+                  document.getElementById("catalog-section")?.scrollIntoView({ behavior: "smooth" })
+                }
+                className="rounded-xl border px-3 py-2"
+              >
+                Course Catalog Editor
+              </button>
+            </div>
+          </div>
+
+          {/* View toggle */}
+          <div className="mb-6 flex flex-wrap items-center gap-2 text-xs">
+            <span className="mr-2 text-[0.75rem] text-slate-500">Planner view:</span>
+            <button
+              className={cx(
+                "rounded-full border px-3 py-1.5",
+                mode === "cards" && "bg-slate-900 text-white"
+              )}
+              onClick={() => setMode("cards")}
+            >
+              Card View
+            </button>
+            <button
+              className={cx(
+                "rounded-full border px-3 py-1.5",
+                mode === "sheet" && "bg-slate-900 text-white"
+              )}
+              onClick={() => setMode("sheet")}
+            >
+              Spreadsheet View
+            </button>
+          </div>
+
+          {/* Requirement Progress – only for CARD VIEW */}
+          {mode === "cards" && (
+            <Section
+              title="Requirement Progress"
+              right={
+                <div className="flex flex-col items-end gap-1 text-xs">
+                  <Pill>{fmtPct(progress.overall)} complete</Pill>
+                  <span className="text-[0.7rem] text-slate-500">
+                    {progress.totalUnits.toFixed(1)} / 32 units planned
+                  </span>
+                </div>
+              }
+            >
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div>
+                  <h3 className="mb-2 text-xs font-semibold text-slate-600">
+                    Distribution Areas (3–3–3 model)
+                  </h3>
+                  <SheetRequirementBlock
+                    label="Group 1: LL + ARTS"
+                    note="3 units total: at least 1 LL + 1 ARTS + 1 extra in either area."
+                    pct={progress.dist3x3.g1}
+                  />
+                  <SheetRequirementBlock
+                    label="Group 2: SBA + EC/HST/REP"
+                    note="3 units total: 1 SBA + 2 units from two of EC, HST, REP."
+                    pct={progress.dist3x3.g2}
+                  />
+                  <SheetRequirementBlock
+                    label="Group 3: MM + NPS + Lab"
+                    note="3 units total: 1 MM + 1 NPS + 1 extra (MM or NPS), with at least 1 lab unit."
+                    pct={progress.dist3x3.g3}
+                  />
+                </div>
+                <div>
+                  <h3 className="mb-2 text-xs font-semibold text-slate-600">
+                    Other degree requirements
+                  </h3>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {otherRequirements.map((r) => (
+                      <div key={r.id} className="rounded-xl border p-3">
+                        <div className="mb-2 flex items-center justify-between">
+                          <div className="text-sm font-medium">{r.label}</div>
+                          <div className="text-xs">
+                            {r.have}/{r.targetCount}
+                          </div>
+                        </div>
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+                          <div
+                            className="h-full bg-slate-900"
+                            style={{ width: `${r.pct * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-slate-500">
+                Distribution progress uses Wellesley’s 3–3–3 model; bars on the right track other
+                requirements like WRIT, language, QR/DL, 300-levels, ELR, and total units.
+              </p>
+            </Section>
+          )}
+
+          {/* CARD VIEW */}
+          {mode === "cards" && (
+            <Section
+              title="Planner (Card View)"
+              subtitle="Each row is one academic year. For each term, pick primary courses first and add backups only where you need them."
+              right={
+                <button
+                  className="text-xs text-indigo-600 underline"
+                  onClick={() => setMode("sheet")}
+                >
+                  Switch to Spreadsheet View
+                </button>
+              }
+            >
+              <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-[0.7rem] text-slate-500">
+                  Optional Winter / Summer term:
+                </span>
+                <label className="flex items-center gap-1">
+                  <span>Year</span>
+                  <select
+                    value={extraYear}
+                    onChange={(e) => setExtraYear(e.target.value)}
+                    className="rounded-lg border px-2 py-1"
+                  >
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                  </select>
+                </label>
+                <label className="flex items-center gap-1">
+                  <span>Term</span>
+                  <select
+                    value={extraSeason}
+                    onChange={(e) => setExtraSeason(e.target.value)}
+                    className="rounded-lg border px-2 py-1"
+                  >
+                    <option>Winter</option>
+                    <option>Summer</option>
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  onClick={addExtraTerm}
+                  className="rounded-lg border bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+                >
+                  + Add Term
+                </button>
+              </div>
+
+              {/* One row per year */}
+              <div className="space-y-5">
+                {[1, 2, 3, 4].map((year) => {
+                  const yearTerms = groupedCardTerms[year] || [];
+                  if (!yearTerms.length) return null;
+                  return (
+                    <div key={year}>
+                      <div className="mb-2 text-sm font-semibold text-slate-700">
+                        Year {year}
+                      </div>
+                      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+                        {yearTerms.map((t) => (
+                          <div
+                            key={t.id}
+                            className={cx(
+                              "rounded-2xl border bg-white p-4",
+                              t.isAbroad && "ring-2 ring-indigo-500"
+                            )}
+                          >
+                            <div className="mb-2 flex items-center justify-between">
+                              <div className="text-xs font-semibold">{t.label}</div>
+                              {t.isAbroad && (
+                                <Pill className="border-indigo-500 text-indigo-600">
+                                  Study Abroad
+                                </Pill>
+                              )}
+                            </div>
+                            {t.isAbroad && (
+                              <input
+                                className="mb-3 w-full rounded-xl border px-3 py-2 text-xs"
+                                placeholder="Program / Location"
+                              />
+                            )}
+                            <div className="space-y-3 text-xs">
+                              {t.slots.map((slot, i) => {
+                                const backups = slot.backups || [];
+                                return (
+                                  <div key={i} className="rounded-xl border p-3">
+                                    <div className="mb-1 flex items-center justify-between">
+                                      <div className="text-xs font-medium">Slot {i + 1}</div>
+                                      {slot.primary && (
+                                        <span className="text-[0.65rem] text-slate-500">
+                                          {byId[slot.primary]?.code}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <CourseSelect
+                                      catalog={catalog}
+                                      value={slot.primary}
+                                      onChange={(cid) =>
+                                        updateTermCourse(t.id, i, "primary", cid || undefined)
+                                      }
+                                      placeholder="Select primary course"
+                                    />
+
+                                    {backups.length > 0 && (
+                                      <div className="mt-2 space-y-1">
+                                        <div className="text-[0.65rem] font-medium text-slate-500">
+                                          Backup courses
+                                        </div>
+                                        {backups.map((bid, bi) => (
+                                          <div key={bi} className="flex items-center gap-1">
+                                            <div className="flex-1">
+                                              <CourseSelect
+                                                catalog={catalog}
+                                                value={bid}
+                                                onChange={(cid) =>
+                                                  updateSlot(t.id, i, (s) => {
+                                                    const arr = [...(s.backups || [])];
+                                                    arr[bi] = cid || "";
+                                                    return { ...s, backups: arr };
+                                                  })
+                                                }
+                                                placeholder={`Backup #${bi + 1}`}
+                                              />
+                                            </div>
+                                            <button
+                                              type="button"
+                                              className="rounded-full border px-2 text-[0.6rem]"
+                                              onClick={() =>
+                                                updateSlot(t.id, i, (s) => {
+                                                  const arr = [...(s.backups || [])];
+                                                  arr.splice(bi, 1);
+                                                  return { ...s, backups: arr };
+                                                })
+                                              }
+                                            >
+                                              ✕
+                                            </button>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+
+                                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                                      <button
+                                        type="button"
+                                        className="text-[0.65rem] text-indigo-600 hover:underline"
+                                        onClick={() =>
+                                          updateSlot(t.id, i, (s) => ({
+                                            ...s,
+                                            backups: [...(s.backups || []), ""].slice(0, 5),
+                                          }))
+                                        }
+                                      >
+                                        + Add backup course
+                                      </button>
+                                      <div className="flex flex-wrap gap-1">
+                                        {slot.primary &&
+                                          byId[slot.primary]?.tags.map((tag) => (
+                                            <Pill
+                                              key={tag}
+                                              className="border-slate-300 bg-slate-50 text-[0.65rem]"
+                                            >
+                                              {tag}
+                                            </Pill>
+                                          ))}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Section>
+          )}
+
+          {/* SPREADSHEET VIEW */}
+          {mode === "sheet" && (
+            <Section
+              title="Spreadsheet-style Planner"
+              subtitle="Overview by year/term, showing the same term/slot data as the card view."
+              right={
+                <button
+                  className="text-xs text-indigo-600 underline"
+                  onClick={() => setMode("cards")}
+                >
+                  Switch to Card View
+                </button>
+              }
+            >
+              <div className="grid gap-4 text-xs lg:grid-cols-3">
+                <div className="space-y-4 lg:col-span-2">
+                  <div className="rounded-2xl border bg-slate-50/60 p-3">
+                    <div className="mb-1 flex items-baseline justify-between">
+                      <div className="text-sm font-semibold">First Year</div>
+                      <div className="text-[0.7rem] text-slate-500">
+                        Shadow-graded fall; WRIT, QR/DL, language, early distributions.
+                      </div>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                      <LinkedTermSheetCard
+                        termLabel="🍁 Fall 2023 🍁"
+                        meta="Shadowgraded"
+                        term={y1Fall}
+                        byId={byId}
+                      />
+                      <OptionalTermSheetCard
+                        termLabel="❄️ Winter 202X ❄️"
+                        meta="Optional / experiential"
+                        rows={1}
+                        placeholder="Add winter term"
+                      >
+                        <SheetRow placeholderName="Internship, PE, EXP…" tags={["EXP"]} />
+                      </OptionalTermSheetCard>
+                      <LinkedTermSheetCard
+                        termLabel="🌸 Spring 202X 🌸"
+                        meta="Graded"
+                        term={y1Spring}
+                        byId={byId}
+                      />
+                      <OptionalTermSheetCard
+                        termLabel="☀️ Summer 202X ☀️"
+                        meta="Transfer / extra units"
+                        rows={1}
+                        placeholder="Add summer term"
+                      >
+                        <SheetRow placeholderName="Summer class, research…" tags={["Transfer"]} />
+                      </OptionalTermSheetCard>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border bg-white/70 p-3">
+                    <div className="mb-1 flex items-baseline justify-between">
+                      <div className="text-sm font-semibold">Sophomore Year</div>
+                      <div className="text-[0.7rem] text-slate-500">
+                        Declare major, build 200-levels, finish core distributions.
+                      </div>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      <LinkedTermSheetCard
+                        termLabel="🍁 Fall 202X 🍁"
+                        meta="Planned"
+                        term={y2Fall}
+                        byId={byId}
+                      />
+                      <LinkedTermSheetCard
+                        termLabel="🌸 Spring 202X 🌸"
+                        meta="Planned"
+                        term={y2Spring}
+                        byId={byId}
+                      />
+                      <OptionalTermSheetCard
+                        termLabel="Winter / Summer 202X"
+                        meta="Optional"
+                        rows={2}
+                        placeholder="Add winter/summer block"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border bg-white/70 p-3">
+                    <div className="mb-1 flex items-baseline justify-between">
+                      <div className="text-sm font-semibold">Junior Year</div>
+                      <div className="text-[0.7rem] text-slate-500">
+                        Often includes study abroad + 200/300-level major work.
+                      </div>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <LinkedTermSheetCard
+                        termLabel="🍁 Fall 202X 🍁"
+                        meta="Major-heavy term"
+                        term={y3Fall}
+                        byId={byId}
+                      />
+                      <LinkedTermSheetCard
+                        termLabel="🌸 Spring 202X 🌸"
+                        meta="Study abroad?"
+                        term={y3Spring}
+                        byId={byId}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border bg-white/70 p-3">
+                    <div className="mb-1 flex items-baseline justify-between">
+                      <div className="text-sm font-semibold">Senior Year</div>
+                      <div className="text-[0.7rem] text-slate-500">
+                        Finish remaining 300-levels, distributions, and 32 units.
+                      </div>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <LinkedTermSheetCard
+                        termLabel="🍁 Fall 202X 🍁"
+                        meta="Capstone / seminar"
+                        term={y4Fall}
+                        byId={byId}
+                      />
+                      <LinkedTermSheetCard
+                        termLabel="🌸 Spring 202X 🌸"
+                        meta="Final term"
+                        term={y4Spring}
+                        byId={byId}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="rounded-2xl border bg-white/80 p-3">
+                    <div className="mb-2 text-sm font-semibold">High-level Summary</div>
+                    <div className="flex flex-wrap gap-2 text-[0.7rem]">
+                      <span className="rounded-full border px-2 py-1">Prior Credits: 0</span>
+                      <span className="rounded-full border px-2 py-1">GPA: N/A</span>
+                      <span className="rounded-full border px-2 py-1">
+                        Units planned: {progress.totalUnits.toFixed(1)} / 32
+                      </span>
+                      <span className="rounded-full border px-2 py-1">
+                        300-level courses: {
+                          progress.detail.find((d) => d.id === "300")?.have ?? 0
+                        } / 4
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border bg-white/80 p-3 text-[0.7rem]">
+                    <div className="mb-2 text-sm font-semibold">Distribution Areas (3–3–3 model)</div>
+                    <SheetRequirementBlock
+                      label="Group 1: LL + ARTS"
+                      note="3 units total: at least 1 LL + 1 ARTS + 1 extra in either area."
+                      pct={progress.dist3x3.g1}
+                    />
+                    <SheetRequirementBlock
+                      label="Group 2: SBA + EC/HST/REP"
+                      note="3 units total: 1 SBA + 2 units from two of EC, HST, REP."
+                      pct={progress.dist3x3.g2}
+                    />
+                    <SheetRequirementBlock
+                      label="Group 3: MM + NPS + Lab"
+                      note="3 units total: 1 MM + 1 NPS + 1 extra (MM or NPS), with at least 1 lab unit."
+                      pct={progress.dist3x3.g3}
+                    />
+                  </div>
+
+                  <div className="rounded-2xl border bg-white/80 p-3 text-[0.7rem]">
+                    <div className="mb-2 text-sm font-semibold">Core Requirements</div>
+                    <SheetFlagRow label="Writing (WRIT)" value="Track WRIT-tagged courses" />
+                    <SheetFlagRow label="Foreign Language" value="Track LANG-tagged courses" />
+                    <SheetFlagRow label="Quantitative Reasoning (QR)" value="Track QR-tagged courses" />
+                    <SheetFlagRow label="Data Literacy (DL)" value="Track DL-tagged courses" />
+                    <SheetFlagRow label="Multicultural" value="Track manually" />
+                  </div>
+
+                  <div className="rounded-2xl border bg-white/80 p-3 text-[0.7rem]">
+                    <div className="mb-2 text-sm font-semibold">Degree-Level Checks</div>
+                    <SheetFlagRow label="One Major" value="Pending" />
+                    <SheetFlagRow
+                      label="Four 300-Levels"
+                      value={`${progress.detail.find((d) => d.id === "300")?.have ?? 0} / 4`}
+                    />
+                    <SheetFlagRow label="18 Units outside 1 department" value="Check at end" />
+                    <SheetRequirementBlock
+                      label="32 Credits"
+                      note="Total units toward graduation"
+                      pct={Math.min(100, (progress.totalUnits / 32) * 100)}
+                    />
+                    <SheetFlagRow label="PE Requirement" value="Track in Workday" />
+                    <SheetFlagRow label="Experiential Learning (2 ELR units)" value="Track via ELR" />
+                    <SheetFlagRow label="Degree Awarded?" value="Not yet" />
+                  </div>
+
+                  <div className="rounded-2xl border bg-white/80 p-3 text-[0.7rem]">
+                    <div className="mb-2 text-sm font-semibold">Major Progress (example)</div>
+                    <div className="mb-1 flex items-center justify-between">
+                      <span>Prefix</span>
+                      <span className="rounded-full border px-2 py-1">e.g. CS</span>
+                    </div>
+                    <div className="mb-1 flex items-center justify-between">
+                      <span>Credits Needed</span>
+                      <span className="rounded-full border px-2 py-1">N/A</span>
+                    </div>
+                    <div className="mb-1 flex items-center justify-between">
+                      <span>Credits Done</span>
+                      <span className="rounded-full border px-2 py-1">0</span>
+                    </div>
+                    <div className="mt-1 italic text-slate-500">
+                      List major classes and keep an eye on 300-levels here.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Section>
+          )}
+
+          {/* Course Catalog */}
+          <Section
+            id="catalog-section"
+            title="Course Catalog"
+            subtitle="Prototype-only catalog; entries appear in the planner’s dropdowns. Requirement tags and departments are chosen from Wellesley’s official structures (with free typing for other institutions)."
+          >
+            <form
+              onSubmit={handleAddCourse}
+              className="mb-4 grid gap-2 text-xs md:grid-cols-6"
+            >
+              <input
+                name="code"
+                className="rounded-lg border px-2 py-1"
+                placeholder="Code (e.g. CS 111)"
+              />
+              <input
+                name="title"
+                className="md:col-span-2 rounded-lg border px-2 py-1"
+                placeholder="Title"
+              />
+              <input
+                name="credits"
+                className="rounded-lg border px-2 py-1"
+                placeholder="Units (e.g. 1)"
+              />
+              <div className="md:col-span-3 rounded-lg border bg-slate-50 px-2 py-2">
+                <div className="mb-1 text-[0.7rem] font-semibold">
+                  Requirement tags (multi-select)
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {requirementTagOptions.map((opt) => {
+                    const active = newCourseTags.includes(opt.id);
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => toggleNewCourseTag(opt.id)}
+                        className={cx(
+                          "rounded-full border px-2 py-1 text-[0.65rem]",
+                          active
+                            ? "bg-slate-900 text-white border-slate-900"
+                            : "bg-white text-slate-700 border-slate-300"
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <select
+                name="source"
+                value={newCourseSource}
+                onChange={(e) => {
+                  setNewCourseSource(e.target.value);
+                  setNewCourseDepts([]);
+                }}
+                className="rounded-lg border px-2 py-1"
+              >
+                <option>Wellesley</option>
+                <option>MIT</option>
+                <option>Babson</option>
+                <option>Olin</option>
+                <option>StudyAbroad</option>
+                <option>Transfer</option>
+                <option>AP/IB</option>
+                <option>Other</option>
+              </select>
+
+              <input
+                name="level"
+                className="rounded-lg border px-2 py-1"
+                placeholder="Level (100/200/300)"
+              />
+
+              {newCourseSource === "Wellesley" ? (
+                <div className="md:col-span-3 rounded-lg border bg-slate-50 px-2 py-2">
+                  <div className="mb-1 text-[0.7rem] font-semibold">
+                    Wellesley department(s) (multi-select)
+                  </div>
+                  <div className="flex max-h-28 flex-wrap gap-1 overflow-y-auto pr-1">
+                    {wellesleyDeptOptions.map((name) => {
+                      const active = newCourseDepts.includes(name);
+                      return (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => toggleNewCourseDept(name)}
+                          className={cx(
+                            "rounded-full border px-2 py-1 text-[0.65rem]",
+                            active
+                              ? "bg-slate-900 text-white border-slate-900"
+                              : "bg-white text-slate-700 border-slate-300"
+                          )}
+                        >
+                          {name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <input
+                  name="dept"
+                  className="md:col-span-3 rounded-lg border px-2 py-1"
+                  placeholder="Dept / program (e.g. MIT EECS)"
+                />
+              )}
+
+              <button
+                type="submit"
+                className="rounded-lg border bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800 md:col-span-2"
+              >
+                + Add to catalog
+              </button>
+            </form>
+
+            <div className="grid gap-3 text-sm md:grid-cols-2 lg:grid-cols-3">
+              {catalog.map((c) => {
+                const deptLabel = c.depts?.length
+                  ? c.depts.join(" / ")
+                  : (c.dept || "Dept N/A");
+                return (
+                  <div key={c.id} className="rounded-xl border bg-white p-3">
+                    <div className="mb-1 flex items-center justify-between">
+                      <div className="font-medium">{c.code}</div>
+                      <Pill className="border-slate-300 bg-slate-50 text-[0.65rem]">
+                        {c.source}
+                      </Pill>
+                    </div>
+                    <div className="mb-1 text-xs">{c.title}</div>
+                    <div className="mb-1 text-[0.65rem] text-slate-500">
+                      {deptLabel} • {c.credits} unit • {c.level}-level
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-1 text-[0.65rem] text-slate-600">
+                      {c.tags.map((t) => (
+                        <Pill key={t} className="border-slate-300">
+                          {t}
+                        </Pill>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Section>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<WellesleyPlanner />);
+  </script>
+</body>
+</html>
