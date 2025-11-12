@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Wellesley 4-Year Planner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 text-slate-900">
+  <div id="root" class="min-h-screen"></div>
+
+  <!-- React + ReactDOM + Babel -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useState, useMemo } = React;
+    const cx = (...c) => c.filter(Boolean).join(" ");
+    const clamp01 = (x) => Math.max(0, Math.min(1, x));
+
+    // ---- Requirements model ----
+    const seedRequirements = [
+      { id: "UNITS", label: "Total Units (32)", targetCount: 32 },
+      { id: "WRIT", label: "First-Year Writing (WRIT)", targetCount: 1 },
+      { id: "LANG", label: "Foreign Language (LANG)", targetCount: 2 },
+      { id: "QR",   label: "Quantitative Reasoning (QR)", targetCount: 1 },
+      { id: "DL",   label: "Data Literacy (DL)", targetCount: 1 },
+      { id: "LL",   label: "Language & Literature (LL)", targetCount: 1 },
+      { id: "ARTS", label: "Arts / Music / Theatre / Film / Video (ARTS)", targetCount: 1 },
+      { id: "SBA",  label: "Social & Behavioral Analysis (SBA)", targetCount: 1 },
+      { id: "EC",   label: "Epistemology & Cognition (EC)", targetCount: 1 },
+      { id: "HST",  label: "Historical Studies (HST)", targetCount: 1 },
+      { id: "REP",  label: "Religion / Ethics / Moral Philosophy (REP)", targetCount: 1 },
+      { id: "MM",   label: "Mathematical Modeling (MM)", targetCount: 1 },
+      { id: "NPS",  label: "Natural & Physical Science (NPS)", targetCount: 1 },
+      { id: "LAB",  label: "Lab Unit (LAB)", targetCount: 1 },
+      { id: "300",  label: "300-level Courses", targetCount: 4 },
+      { id: "PE",   label: "Physical Education (PE)", targetCount: 1 },
+      { id: "EXP",  label: "Experiential Learning (EXP)", targetCount: 2 },
+    ];
+
+    const requirementTagOptions = [
+      { id: "WRIT", label: "WRIT" },
+      { id: "LANG", label: "LANG" },
+      { id: "QR",   label: "QR" },
+      { id: "DL",   label: "DL" },
+      { id: "LL",   label: "LL" },
+      { id: "ARTS", label: "ARTS" },
+      { id: "SBA",  label: "SBA" },
+      { id: "EC",   label: "EC" },
+      { id: "HST",  label: "HST" },
+      { id: "REP",  label: "REP" },
+      { id: "MM",   label: "MM" },
+      { id: "NPS",  label: "NPS" },
+      { id: "LAB",  label: "LAB" },
+      { id: "300",  label: "300" },
+      { id: "PE",   label: "PE" },
+      { id: "EXP",  label: "EXP" },
+    ];
+
+    const wellesleyDeptOptions = [
+      "Africana Studies","American Studies","Anthropology","Art","Art History",
+      "Astronomy","Biological Sciences","Chemistry","Cinema and Media Studies",
+      "Classical Studies","Cognitive and Linguistic Science","Computer Science",
+      "Economics","English","Environmental Studies","French","Geosciences",
+      "German","History","International Relations","Mathematics","Music",
+      "Neuroscience","Philosophy","Physics","Political Science","Psychology",
+      "Quantitative Reasoning","Religion","Russian","Sociology","Spanish",
+      "Statistics","Theatre Studies","Women’s and Gender Studies","Writing Program",
+    ];
+
+    const newSlot = () => ({
+      code: "",
+      title: "",
+      credits: 1,
+      tags: [],
+      depts: [],
+      source: "Wellesley",
+      level: 100,
+    });
+
+    const years = [
+      { id: 1, label: "First Year", termLabels: ["Fall", "Spring"] },
+      { id: 2, label: "Sophomore Year", termLabels: ["Fall", "Spring"] },
+      { id: 3, label: "Junior Year", termLabels: ["Fall", "Spring"] },
+      { id: 4, label: "Senior Year", termLabels: ["Fall", "Spring"] },
+    ];
+
+    const defaultTerms = [
+      { id: "Y1-F", label: "First Year • Fall",  year: 1 },
+      { id: "Y1-S", label: "First Year • Spring", year: 1 },
+      { id: "Y2-F", label: "Sophomore • Fall",   year: 2 },
+      { id: "Y2-S", label: "Sophomore • Spring", year: 2 },
+      { id: "Y3-F", label: "Junior • Fall",      year: 3 },
+      { id: "Y3-S", label: "Junior • Spring",    year: 3 },
+      { id: "Y4-F", label: "Senior • Fall",      year: 4 },
+      { id: "Y4-S", label: "Senior • Spring",    year: 4 },
+    ].map(t => ({ ...t, slots: [newSlot(), newSlot(), newSlot(), newSlot()] }));
+
+    // ---- UI helpers ----
+    const Pill = ({ children, className }) => (
+      <span className={cx("inline-flex items-center rounded-full border px-2 py-1 text-xs", className)}>
+        {children}
+      </span>
+    );
+
+    const RingStat = ({ pct, label, subtitle }) => {
+      const p = clamp01(pct);
+      const deg = p * 360;
+      return (
+        <div className="flex flex-col items-center text-center text-xs">
+          <div className="relative h-20 w-20">
+            <div
+              className="absolute inset-0 rounded-full"
+              style={{
+                background: `conic-gradient(#1e40af ${deg}deg, #e5e7eb 0deg)`,
+              }}
+            />
+            <div className="absolute inset-2 rounded-full bg-white flex items-center justify-center">
+              <span className="text-sm font-semibold text-slate-900">
+                {Math.round(p * 100)}%
+              </span>
+            </div>
+          </div>
+          <div className="mt-1 text-[0.7rem] font-medium text-slate-800">{label}</div>
+          {subtitle && (
+            <div className="mt-0.5 text-[0.65rem] text-slate-500">{subtitle}</div>
+          )}
+        </div>
+      );
+    };
+
+    const MiniReqBar = ({ label, have, target }) => {
+      const pct = clamp01(target ? have / target : 0);
+      return (
+        <div className="mb-2">
+          <div className="flex items-center justify-between text-[0.7rem]">
+            <span>{label}</span>
+            <span className="text-[0.65rem]">
+              {have}/{target}
+            </span>
+          </div>
+          <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+            <div
+              className="h-full rounded-full bg-indigo-500"
+              style={{ width: `${pct * 100}%` }}
+            />
+          </div>
+        </div>
+      );
+    };
+
+    // ---- Term cards (left column) ----
+    const TermSummaryCard = ({ term, onOpen }) => {
+      const nonEmptySlots = term.slots.filter(s => s.code || s.title);
+      return (
+        <button
+          type="button"
+          onClick={onOpen}
+          className="group flex h-full flex-col rounded-xl border bg-white px-3 py-2 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+        >
+          <div className="mb-1 flex items-center justify-between">
+            <div className="text-[0.75rem] font-semibold text-slate-800">
+              {term.label.split("•")[1] || term.label}
+            </div>
+            <span className="text-[0.65rem] text-slate-400 group-hover:text-indigo-500">
+              Edit
+            </span>
+          </div>
+          <div className="space-y-1 text-[0.7rem]">
+            {nonEmptySlots.length === 0 && (
+              <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-2 py-2 text-[0.65rem] text-slate-400">
+                No courses yet. Click to add.
+              </div>
+            )}
+            {nonEmptySlots.slice(0, 3).map((s, i) => (
+              <div key={i} className="flex items-start justify-between">
+                <div className="truncate">
+                  <div className="text-[0.7rem] font-medium truncate">
+                    {s.code || "Course"}
+                  </div>
+                  <div className="text-[0.65rem] text-slate-500 truncate">
+                    {s.title || "Tap to edit details"}
+                  </div>
+                </div>
+                <div className="ml-2 text-[0.65rem] text-slate-500">
+                  {s.credits || 0}u
+                </div>
+              </div>
+            ))}
+            {nonEmptySlots.length > 3 && (
+              <div className="text-[0.6rem] text-slate-400">
+                + {nonEmptySlots.length - 3} more…
+              </div>
+            )}
+          </div>
+        </button>
+      );
+    };
+
+    // ---- Term detail modal ----
+    function TermDetailModal({ term, onClose, updateSlot, addSlot, removeSlot }) {
+      if (!term) return null;
+
+      const updateField = (slotIdx, field, value) => {
+        updateSlot(term.id, slotIdx, (s) => ({ ...s, [field]: value }));
+      };
+
+      const toggleTag = (slotIdx, id) => {
+        updateSlot(term.id, slotIdx, (s) => {
+          const has = s.tags.includes(id);
+          return { ...s, tags: has ? s.tags.filter(t => t !== id) : [...s.tags, id] };
+        });
+      };
+
+      const toggleDept = (slotIdx, dept) => {
+        updateSlot(term.id, slotIdx, (s) => {
+          const has = s.depts.includes(dept);
+          return { ...s, depts: has ? s.depts.filter(d => d !== dept) : [...s.depts, dept] };
+        });
+      };
+
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <div className="text-xs uppercase tracking-wide text-slate-500">
+                  Edit term
+                </div>
+                <div className="text-sm font-semibold text-slate-900">{term.label}</div>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-full border px-3 py-1 text-xs hover:bg-slate-50"
+              >
+                ✕ Close
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              {term.slots.map((slot, i) => (
+                <div key={i} className="rounded-xl border p-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[0.7rem] font-semibold text-slate-800">
+                        Course {i + 1}
+                      </span>
+                      {slot.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {slot.tags.map(t => (
+                            <span
+                              key={t}
+                              className="rounded-full bg-indigo-50 px-2 py-0.5 text-[0.6rem] text-indigo-700"
+                            >
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeSlot(term.id, i)}
+                      className="rounded-full border border-rose-200 px-2 py-0.5 text-[0.6rem] text-rose-600 hover:bg-rose-50"
+                    >
+                      Remove
+                    </button>
+                  </div>
+
+                  <div className="grid gap-2 md:grid-cols-6">
+                    <input
+                      className="rounded-lg border px-2 py-1 text-[0.7rem] md:col-span-1"
+                      placeholder="Code (e.g. CS 111)"
+                      value={slot.code}
+                      onChange={(e) => updateField(i, "code", e.target.value)}
+                    />
+                    <input
+                      className="rounded-lg border px-2 py-1 text-[0.7rem] md:col-span-3"
+                      placeholder="Title"
+                      value={slot.title}
+                      onChange={(e) => updateField(i, "title", e.target.value)}
+                    />
+                    <input
+                      className="rounded-lg border px-2 py-1 text-[0.7rem] md:col-span-1"
+                      placeholder="Units"
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={slot.credits}
+                      onChange={(e) =>
+                        updateField(i, "credits", parseFloat(e.target.value || "0"))
+                      }
+                    />
+                    <input
+                      className="rounded-lg border px-2 py-1 text-[0.7rem] md:col-span-1"
+                      placeholder="Level (100/200/300)"
+                      type="number"
+                      value={slot.level}
+                      onChange={(e) =>
+                        updateField(i, "level", parseInt(e.target.value || "0", 10))
+                      }
+                    />
+                  </div>
+
+                  <div className="mt-2 grid gap-2 md:grid-cols-3">
+                    <div className="rounded-lg border bg-slate-50 px-2 py-2">
+                      <div className="mb-1 text-[0.7rem] font-semibold text-slate-700">
+                        Requirement tags
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {requirementTagOptions.map(opt => {
+                          const active = slot.tags.includes(opt.id);
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => toggleTag(i, opt.id)}
+                              className={cx(
+                                "rounded-full border px-2 py-0.5 text-[0.65rem]",
+                                active
+                                  ? "border-indigo-600 bg-indigo-600 text-white"
+                                  : "border-slate-300 bg-white text-slate-700"
+                              )}
+                            >
+                              {opt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border bg-slate-50 px-2 py-2">
+                      <div className="mb-1 flex items-center justify-between text-[0.7rem]">
+                        <span className="font-semibold text-slate-700">
+                          Department(s)
+                        </span>
+                        <select
+                          className="rounded-md border px-1 py-0.5 text-[0.65rem]"
+                          value={slot.source}
+                          onChange={(e) => updateField(i, "source", e.target.value)}
+                        >
+                          <option>Wellesley</option>
+                          <option>MIT</option>
+                          <option>Babson</option>
+                          <option>Olin</option>
+                          <option>StudyAbroad</option>
+                          <option>Transfer</option>
+                          <option>Other</option>
+                        </select>
+                      </div>
+
+                      {slot.source === "Wellesley" ? (
+                        <div className="flex max-h-28 flex-wrap gap-1 overflow-y-auto pr-1">
+                          {wellesleyDeptOptions.map(name => {
+                            const active = slot.depts.includes(name);
+                            return (
+                              <button
+                                key={name}
+                                type="button"
+                                onClick={() => toggleDept(i, name)}
+                                className={cx(
+                                  "rounded-full border px-2 py-0.5 text-[0.65rem]",
+                                  active
+                                    ? "border-sky-600 bg-sky-600 text-white"
+                                    : "border-slate-300 bg-white text-slate-700"
+                                )}
+                              >
+                                {name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <input
+                          className="mt-1 w-full rounded-lg border px-2 py-1 text-[0.7rem]"
+                          placeholder="Dept / program (e.g. MIT EECS)"
+                          value={slot.depts[0] || ""}
+                          onChange={(e) => updateField(i, "depts", [e.target.value])}
+                        />
+                      )}
+                    </div>
+
+                    <div className="rounded-lg border bg-slate-50 px-2 py-2">
+                      <div className="mb-1 text-[0.7rem] font-semibold text-slate-700">
+                        Notes
+                      </div>
+                      <textarea
+                        className="h-20 w-full rounded-lg border px-2 py-1 text-[0.7rem]"
+                        placeholder="Optional notes about why you're taking this, cross-reg info, etc."
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 flex justify-center">
+              <button
+                type="button"
+                onClick={() => addSlot(term.id)}
+                className="rounded-full bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
+              >
+                + Add course
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ---- Main App ----
+    function App() {
+      const [terms, setTerms] = useState(defaultTerms);
+      const [activeTermId, setActiveTermId] = useState(null);
+      const [activeTab, setActiveTab] = useState("plan");
+
+      const termById = (id) => terms.find(t => t.id === id) || null;
+
+      const updateSlot = (termId, slotIdx, updater) => {
+        setTerms(prev =>
+          prev.map(t =>
+            t.id !== termId
+              ? t
+              : {
+                  ...t,
+                  slots: t.slots.map((s, i) =>
+                    i === slotIdx ? updater(s || newSlot()) : s
+                  ),
+                }
+          )
+        );
+      };
+
+      const addSlot = (termId) => {
+        setTerms(prev =>
+          prev.map(t =>
+            t.id !== termId
+              ? t
+              : { ...t, slots: [...t.slots, newSlot()] }
+          )
+        );
+      };
+
+      const removeSlot = (termId, slotIdx) => {
+        setTerms(prev =>
+          prev.map(t =>
+            t.id !== termId
+              ? t
+              : { ...t, slots: t.slots.filter((_, i) => i !== slotIdx) }
+          )
+        );
+      };
+
+      // ---- Progress calculations ----
+      const progress = useMemo(() => {
+        const counts = Object.fromEntries(seedRequirements.map(r => [r.id, 0]));
+        let totalUnits = 0;
+        let level300 = 0;
+
+        terms.forEach(t =>
+          t.slots.forEach(s => {
+            if (!(s.code || s.title)) return;
+            const credits = Number(s.credits || 0);
+            totalUnits += credits;
+            if (s.level >= 300) level300 += 1;
+            s.tags.forEach(tag => {
+              if (!counts[tag]) counts[tag] = 0;
+              counts[tag] += 1;
+            });
+          })
+        );
+
+        counts.UNITS = totalUnits;
+        counts["300"] = level300;
+
+        const detail = seedRequirements.map(r => {
+          const have = counts[r.id] || 0;
+          const pct = clamp01(have / (r.targetCount || 1));
+          return { ...r, have, pct };
+        });
+
+        const overall = detail.reduce((sum, r) => sum + r.pct, 0) / detail.length;
+
+        const c = (id) => counts[id] || 0;
+        const g1Units = c("LL") + c("ARTS");
+        const g1UnitsPct = clamp01(g1Units / 3);
+        const g1LLPct = clamp01(c("LL") / 1);
+        const g1ArtsPct = clamp01(c("ARTS") / 1);
+        const g1 = (g1UnitsPct + g1LLPct + g1ArtsPct) / 3;
+
+        const g2Units = c("SBA") + c("EC") + c("HST") + c("REP");
+        const g2UnitsPct = clamp01(g2Units / 3);
+        const g2SBAPct = clamp01(c("SBA") / 1);
+        const distinctEHR = ["EC","HST","REP"].filter(id => c(id) > 0).length;
+        const g2DistinctPct = clamp01(distinctEHR / 2);
+        const g2 = (g2UnitsPct + g2SBAPct + g2DistinctPct) / 3;
+
+        const g3Units = c("MM") + c("NPS");
+        const g3UnitsPct = clamp01(g3Units / 3);
+        const g3MMPct = clamp01(c("MM") / 1);
+        const g3NPSPct = clamp01(c("NPS") / 1);
+        const g3LABPct = clamp01(c("LAB") / 1);
+        const g3 = (g3UnitsPct + g3MMPct + g3NPSPct + g3LABPct) / 4;
+
+        return {
+          detail,
+          counts,
+          overall,
+          totalUnits,
+          dist3x3: { g1, g2, g3 },
+        };
+      }, [terms]);
+
+      const getReq = (id) => progress.detail.find(r => r.id === id) || { have: 0, targetCount: 1, pct: 0 };
+
+      // ---- Views ----
+      const renderPlan = () => (
+        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          {/* Left: four rows (First/Soph/Junior/Senior) */}
+          <div className="space-y-4">
+            {years.map(y => {
+              const fallId = `Y${y.id}-F`;
+              const springId = `Y${y.id}-S`;
+              const fall = termById(fallId);
+              const spring = termById(springId);
+
+              return (
+                <div key={y.id} className="rounded-2xl border bg-white/70 p-3">
+                  <div className="mb-2 text-sm font-semibold text-slate-800">
+                    {y.label}
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {fall && (
+                      <TermSummaryCard
+                        term={fall}
+                        onOpen={() => setActiveTermId(fall.id)}
+                      />
+                    )}
+                    {spring && (
+                      <TermSummaryCard
+                        term={spring}
+                        onOpen={() => setActiveTermId(spring.id)}
+                      />
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Right: visuals / stats */}
+          <div className="space-y-3">
+            <div className="rounded-2xl border bg-white p-3">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="text-sm font-semibold text-slate-900">
+                  Degree snapshot
+                </div>
+              </div>
+              <div className="flex justify-around gap-3">
+                <RingStat
+                  pct={progress.totalUnits / 32}
+                  label="Units toward 32"
+                  subtitle={`${progress.totalUnits.toFixed(1)} / 32`}
+                />
+                <RingStat
+                  pct={(progress.dist3x3.g1 + progress.dist3x3.g2 + progress.dist3x3.g3) / 3}
+                  label="Distributions (3–3–3)"
+                  subtitle="Avg of Groups 1–3"
+                />
+              </div>
+            </div>
+
+            <div className="rounded-2xl border bg-white p-3 text-[0.75rem]">
+              <div className="mb-2 text-sm font-semibold text-slate-900">
+                Distribution groups
+              </div>
+              <MiniReqBar
+                label="Group 1: LL + ARTS"
+                have={getReq("LL").have + getReq("ARTS").have}
+                target={3}
+              />
+              <MiniReqBar
+                label="Group 2: SBA + EC/HST/REP"
+                have={
+                  getReq("SBA").have +
+                  getReq("EC").have +
+                  getReq("HST").have +
+                  getReq("REP").have
+                }
+                target={3}
+              />
+              <MiniReqBar
+                label="Group 3: MM + NPS + Lab"
+                have={getReq("MM").have + getReq("NPS").have}
+                target={3}
+              />
+            </div>
+
+            <div className="rounded-2xl border bg-white p-3 text-[0.75rem]">
+              <div className="mb-2 text-sm font-semibold text-slate-900">
+                Key requirements
+              </div>
+              <MiniReqBar label="WRIT" have={getReq("WRIT").have} target={1} />
+              <MiniReqBar label="LANG" have={getReq("LANG").have} target={2} />
+              <MiniReqBar label="QR"   have={getReq("QR").have}   target={1} />
+              <MiniReqBar label="DL"   have={getReq("DL").have}   target={1} />
+              <MiniReqBar label="PE"   have={getReq("PE").have}   target={1} />
+              <MiniReqBar label="EXP"  have={getReq("EXP").have}  target={2} />
+            </div>
+
+            <div className="rounded-2xl border bg-white p-3 text-[0.75rem]">
+              <div className="mb-2 flex items-center justify-between">
+                <div className="text-sm font-semibold text-slate-900">
+                  Major progress
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="relative h-16 w-16">
+                  <div
+                    className="absolute inset-0 rounded-full"
+                    style={{
+                      background: `conic-gradient(#4f46e5 ${getReq("300").pct * 360}deg, #e5e7eb 0deg)`,
+                    }}
+                  />
+                  <div className="absolute inset-2 flex items-center justify-center rounded-full bg-white">
+                    <span className="text-xs font-semibold text-slate-900">
+                      {getReq("300").have}/{getReq("300").targetCount}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex-1 text-[0.7rem] text-slate-700">
+                  Track 300-level seminars and major requirements here.  
+                  For a real deployment, this could be tied to a specific major’s checklist.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+
+      const renderRequirements = () => (
+        <div className="mt-4 rounded-2xl border bg-white p-4 text-xs">
+          <div className="mb-3 text-sm font-semibold text-slate-900">
+            Requirement details
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {progress.detail.map(r => (
+              <div key={r.id} className="rounded-xl border px-3 py-2">
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="text-[0.75rem] font-medium text-slate-800">
+                    {r.label}
+                  </span>
+                  <span className="text-[0.7rem] text-slate-500">
+                    {r.have}/{r.targetCount}
+                  </span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+                  <div
+                    className="h-full rounded-full bg-indigo-600"
+                    style={{ width: `${r.pct * 100}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+
+      const renderCourses = () => {
+        const rows = [];
+        terms.forEach(t => {
+          t.slots.forEach(s => {
+            if (!(s.code || s.title)) return;
+            rows.push({ term: t.label, ...s });
+          });
+        });
+
+        return (
+          <div className="mt-4 rounded-2xl border bg-white p-4 text-xs">
+            <div className="mb-3 text-sm font-semibold text-slate-900">
+              Planned courses
+            </div>
+            {rows.length === 0 ? (
+              <div className="text-[0.75rem] text-slate-500">
+                No courses yet. Add courses from the Planner tab.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full border-collapse text-[0.75rem]">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="border-b px-2 py-1 text-left">Term</th>
+                      <th className="border-b px-2 py-1 text-left">Code</th>
+                      <th className="border-b px-2 py-1 text-left">Title</th>
+                      <th className="border-b px-2 py-1 text-left">Units</th>
+                      <th className="border-b px-2 py-1 text-left">Level</th>
+                      <th className="border-b px-2 py-1 text-left">Tags</th>
+                      <th className="border-b px-2 py-1 text-left">Departments</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r, idx) => (
+                      <tr key={idx} className="odd:bg-white even:bg-slate-50/60">
+                        <td className="border-b px-2 py-1">{r.term}</td>
+                        <td className="border-b px-2 py-1">{r.code}</td>
+                        <td className="border-b px-2 py-1">{r.title}</td>
+                        <td className="border-b px-2 py-1">{r.credits}</td>
+                        <td className="border-b px-2 py-1">{r.level}</td>
+                        <td className="border-b px-2 py-1">
+                          {r.tags.join(", ")}
+                        </td>
+                        <td className="border-b px-2 py-1">
+                          {r.depts.join(" / ")}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      };
+
+      return (
+        <div className="mx-auto max-w-6xl p-6">
+          {/* Top bar */}
+          <header className="mb-4 flex flex-col gap-3 border-b pb-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-xl font-semibold text-slate-900">
+                Wellesley 4-Year Planner
+              </h1>
+              <p className="text-xs text-slate-500">
+                Plan four years, track requirements, and see your progress at a glance.
+              </p>
+            </div>
+            <nav className="flex gap-2 text-xs">
+              {[
+                { id: "plan", label: "Planner" },
+                { id: "reqs", label: "Requirements" },
+                { id: "courses", label: "Courses" },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={cx(
+                    "rounded-full px-3 py-1.5",
+                    activeTab === tab.id
+                      ? "bg-slate-900 text-white"
+                      : "bg-white text-slate-700 border"
+                  )}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+          </header>
+
+          {activeTab === "plan" && renderPlan()}
+          {activeTab === "reqs" && renderRequirements()}
+          {activeTab === "courses" && renderCourses()}
+
+          <TermDetailModal
+            term={activeTermId ? termById(activeTermId) : null}
+            onClose={() => setActiveTermId(null)}
+            updateSlot={updateSlot}
+            addSlot={addSlot}
+            removeSlot={removeSlot}
+          />
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
+</body>
+</html>
