@@ -239,7 +239,15 @@ export const TermSummaryCard = ({ term, onOpen, onRemove, canRemove, onYearChang
 };
 
 // ---- Term detail modal ----
-export function TermDetailModal({ term, onClose, updateSlot, addSlot, removeSlot, programSelections = [] }) {
+export function TermDetailModal({
+  term,
+  onClose,
+  updateSlot,
+  addSlot,
+  removeSlot,
+  programSelections = [],
+  programRequirementOptions = {},
+}) {
   if (!term) return null;
 
   const updateField = (slotIdx, field, value) => {
@@ -367,8 +375,17 @@ export function TermDetailModal({ term, onClose, updateSlot, addSlot, removeSlot
       if (programs[programId]) {
         delete programs[programId];
       } else {
-        programs[programId] = true;
+        programs[programId] = { requirement: "" };
       }
+      return { ...s, programs };
+    });
+  };
+
+  const setProgramRequirement = (slotIdx, programId, requirementId) => {
+    updateSlot(term.id, slotIdx, (s) => {
+      const programs = { ...(s.programs || {}) };
+      if (!programs[programId]) return s;
+      programs[programId] = { ...(programs[programId] || {}), requirement: requirementId };
       return { ...s, programs };
     });
   };
@@ -531,27 +548,42 @@ export function TermDetailModal({ term, onClose, updateSlot, addSlot, removeSlot
                     <div className="mb-1 text-[0.7rem] font-semibold text-slate-700">
                       Counts toward program(s)
                     </div>
-                    <div className="space-y-1 text-[0.65rem]">
+                    <div className="space-y-2 text-[0.65rem]">
                       {programSelections.map(program => {
                         if (program.type === "None" || !program.value) return null;
                         const assigned = Boolean(slot.programs?.[program.id]);
+                        const requirementOptions = programRequirementOptions[program.id] || [];
                         return (
-                          <label key={program.id} className="flex items-center gap-2 rounded bg-white px-2 py-1">
-                            <input
-                              type="checkbox"
-                              checked={assigned}
-                              onChange={() => toggleProgramAssignment(i, program.id)}
-                              className="rounded"
-                            />
-                            <span className="flex-1">
-                              {program.label} • {program.value}
-                            </span>
-                          </label>
+                          <div key={program.id} className="rounded bg-white p-2">
+                            <label className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={assigned}
+                                onChange={() => toggleProgramAssignment(i, program.id)}
+                                className="rounded"
+                              />
+                              <span className="flex-1 font-medium text-slate-700">
+                                {program.label} • {program.value}
+                              </span>
+                            </label>
+                            {assigned && requirementOptions.length > 0 && (
+                              <select
+                                className="mt-2 w-full rounded border px-2 py-1 text-[0.65rem]"
+                                value={slot.programs?.[program.id]?.requirement || ""}
+                                onChange={(e) => setProgramRequirement(i, program.id, e.target.value)}
+                              >
+                                <option value="">Select requirement</option>
+                                {requirementOptions.map(opt => (
+                                  <option key={opt.id} value={opt.id}>{opt.label}</option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
                         );
                       })}
                     </div>
                     <p className="mt-1 text-[0.6rem] text-slate-500">
-                      Only checked courses count toward that major or minor summary.
+                      Assign each course to the requirement it fulfills for that program.
                     </p>
                   </div>
                 )}

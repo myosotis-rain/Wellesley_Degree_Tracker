@@ -117,6 +117,67 @@ const summarizeProgramProgress = (programName, courses, programMeta = {}) => {
   };
 };
 
+const sanitizeReqKey = (key = "") => key.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
+const programRequirementOptionSets = {
+  "Media Arts and Sciences": [
+    { id: "mas-intro", label: "Intro Courses (3)" },
+    { id: "mas-studio", label: "Studio Core (3)" },
+    { id: "mas-cs", label: "CS Core (3)" },
+    { id: "mas-electives", label: "MAS Electives (3)" },
+    { id: "mas-capstone", label: "Capstone Course" },
+    { id: "mas-portfolio", label: "Portfolio / Senior Deliverable" },
+  ],
+  "Computer Science": [
+    { id: "cs-intro", label: "Intro (CS 111/112)" },
+    { id: "cs-core-230", label: "CS 230 Series" },
+    { id: "cs-core-231", label: "CS 231" },
+    { id: "cs-core-235", label: "CS 235" },
+    { id: "cs-core-240", label: "CS 240" },
+    { id: "cs-300", label: "300-level CS" },
+    { id: "cs-elective", label: "CS Elective (200+)" },
+    { id: "cs-math", label: "Supporting Math (MATH 225)" },
+  ],
+  "Biological Sciences": [
+    { id: "bio-intro-cell", label: "Intro: Cell & Molecular" },
+    { id: "bio-intro-organismal", label: "Intro: Organismal" },
+    { id: "bio-group-cell", label: "200-level: Cell Biology" },
+    { id: "bio-group-systems", label: "200-level: Systems Biology" },
+    { id: "bio-group-community", label: "200-level: Community Biology" },
+    { id: "bio-extra-200", label: "Additional 200-level BISC" },
+    { id: "bio-300", label: "300-level BISC" },
+    { id: "bio-elective", label: "BISC Elective / EXTD 225" },
+    { id: "bio-chem-intro", label: "Intro Chemistry" },
+    { id: "bio-chem-advanced", label: "Advanced Chemistry" },
+  ],
+  Anthropology: [
+    { id: "anth-101", label: "ANTH 101" },
+    { id: "anth-2nd-intro", label: "Second Intro (ANTH 102/103)" },
+    { id: "anth-205", label: "ANTH 205" },
+    { id: "anth-301", label: "ANTH 301" },
+    { id: "anth-extra-300", label: "Additional 300-level" },
+    { id: "anth-elective", label: "Anthropology Elective" },
+    { id: "anth-experience", label: "Field / Experience" },
+  ],
+};
+
+const getRequirementOptionsForMajor = (majorName) => {
+  if (programRequirementOptionSets[majorName]) return programRequirementOptionSets[majorName];
+  const config = majorRequirements[majorName];
+  if (!config) return [];
+  const options = [];
+  (config.requiredCourses || []).forEach(course => {
+    options.push({ id: `required-${sanitizeReqKey(course)}`, label: `Required: ${course}` });
+  });
+  if (config.electiveCourses) {
+    options.push({ id: "generic-elective", label: "Major Elective" });
+  }
+  (config.mathRequirements || []).forEach(course => {
+    options.push({ id: `support-${sanitizeReqKey(course)}`, label: `Supporting: ${course}` });
+  });
+  return options;
+};
+
 const computeMASProgress = (courses, majorReq) => {
   const normalizeCode = (course) => (course.code || "").trim().toUpperCase();
 
@@ -518,6 +579,14 @@ export default function App() {
 
   const programOptions = Object.keys(majorRequirements);
 
+  const programRequirementOptionsMap = useMemo(() => {
+    const entries = programSelections.map(program => [
+      program.id,
+      program.value ? getRequirementOptionsForMajor(program.value) : [],
+    ]);
+    return Object.fromEntries(entries);
+  }, [programSelections]);
+
   const allCourses = useMemo(() => {
     const collected = [];
     terms.forEach(t => {
@@ -548,10 +617,18 @@ export default function App() {
       prev.map(program =>
         program.id === programId
           ? { ...program, experienceComplete: !program.experienceComplete }
-          : program
+        : program
       )
     );
   };
+
+const getAssignedRequirementId = (course, programId) =>
+  programId ? course.programs?.[programId]?.requirement || "" : "";
+
+const countAssignedRequirement = (courses, programId, requirementId) => {
+  if (!programId || !requirementId) return 0;
+  return courses.filter(course => getAssignedRequirementId(course, programId) === requirementId).length;
+};
 
   const getCoursesForProgram = (programId) => {
     const flagged = allCourses.filter(course => course.programs?.[programId]);
@@ -871,17 +948,21 @@ export default function App() {
                   {program.type !== "None" && program.value && summary && summary.isSpecial && summary.masProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
                       {(() => {
-                        const introCompleted = (summary.masProgress.visualAnalysis.length > 0 ? 1 : 0) +
+                        const assignedIntro = countAssignedRequirement(programCourses, program.id, "mas-intro");
+                        const assignedStudio = countAssignedRequirement(programCourses, program.id, "mas-studio");
+                        const assignedCS = countAssignedRequirement(programCourses, program.id, "mas-cs");
+                        const assignedElective = countAssignedRequirement(programCourses, program.id, "mas-electives");
+                        const introHeuristic = (summary.masProgress.visualAnalysis.length > 0 ? 1 : 0) +
                           (summary.masProgress.studioFoundation.length > 0 ? 1 : 0) +
                           (summary.masProgress.csIntro.length > 0 ? 1 : 0);
-                        const studioCompleted = Math.min(summary.masProgress.studioCore.length, 3);
-                        const csCompleted = Math.min(summary.masProgress.csCore.length, 3);
-                        const electiveCompleted = Math.min(summary.masProgress.additional.length, 3);
+                        const studioHeuristic = Math.min(summary.masProgress.studioCore.length, 3);
+                        const csHeuristic = Math.min(summary.masProgress.csCore.length, 3);
+                        const electiveHeuristic = Math.min(summary.masProgress.additional.length, 3);
                         const tiles = [
-                          { label: "Intro Courses", value: `${introCompleted}/3` },
-                          { label: "Studio Core", value: `${studioCompleted}/3` },
-                          { label: "CS Core", value: `${csCompleted}/3` },
-                          { label: "MAS Electives", value: `${electiveCompleted}/3` },
+                          { id: "mas-intro", label: "Intro Courses", value: `${assignedIntro || introHeuristic}/3` },
+                          { id: "mas-studio", label: "Studio Core", value: `${assignedStudio || studioHeuristic}/3` },
+                          { id: "mas-cs", label: "CS Core", value: `${assignedCS || csHeuristic}/3` },
+                          { id: "mas-electives", label: "MAS Electives", value: `${assignedElective || electiveHeuristic}/3` },
                         ];
                         return (
                           <div className="grid gap-2 sm:grid-cols-4">
@@ -906,7 +987,10 @@ export default function App() {
                           <div className="flex items-center justify-between">
                             <span className="text-[0.6rem] uppercase">Capstone Ready</span>
                             <span className="text-sm font-semibold">
-                              {summary.masProgress.capstone.length > 0 ? "✓ Completed" : "Not yet"}
+                              {countAssignedRequirement(programCourses, program.id, "mas-capstone") > 0 ||
+                              summary.masProgress.capstone.length > 0
+                                ? "✓ Completed"
+                                : "Not yet"}
                             </span>
                           </div>
                           <p className="mt-1 text-[0.6rem]">
@@ -942,11 +1026,20 @@ export default function App() {
                       {(() => {
                         const totalCore = summary.csProgress.coreGroups.length;
                         const completedCore = summary.csProgress.coreGroups.filter(group => group.completed).length;
+                        const assignedIntro = countAssignedRequirement(programCourses, program.id, "cs-intro");
+                        const assignedCore = [
+                          "cs-core-230",
+                          "cs-core-231",
+                          "cs-core-235",
+                          "cs-core-240",
+                        ].reduce((sum, id) => sum + countAssignedRequirement(programCourses, program.id, id), 0);
+                        const assigned300 = countAssignedRequirement(programCourses, program.id, "cs-300");
+                        const assignedElective = countAssignedRequirement(programCourses, program.id, "cs-elective");
                         const tiles = [
-                          { label: "Intro", value: `${summary.csProgress.introCompleted ? 1 : 0}/1` },
-                          { label: "Core 200-level", value: `${completedCore}/${totalCore}` },
-                          { label: "300-level CS", value: `${summary.csProgress.level300Count}/${summary.csProgress.level300Required}` },
-                          { label: "CS Electives", value: `${summary.csProgress.electivesCount}/${summary.csProgress.electivesRequired}` },
+                          { label: "Intro", value: `${assignedIntro || (summary.csProgress.introCompleted ? 1 : 0)}/1` },
+                          { label: "Core 200-level", value: `${assignedCore || completedCore}/${totalCore}` },
+                          { label: "300-level CS", value: `${assigned300 || summary.csProgress.level300Count}/${summary.csProgress.level300Required}` },
+                          { label: "CS Electives", value: `${assignedElective || summary.csProgress.electivesCount}/${summary.csProgress.electivesRequired}` },
                         ];
                         return (
                           <div className="grid gap-2 sm:grid-cols-4">
@@ -964,8 +1057,8 @@ export default function App() {
                           <div className="text-[0.55rem] uppercase text-slate-500">Math Supporting Course</div>
                           <div>MATH 225</div>
                         </div>
-                        <div className={summary.csProgress.mathSatisfied ? "text-green-600 font-semibold" : "text-slate-500 font-semibold"}>
-                          {summary.csProgress.mathSatisfied ? "✓ Done" : "Pending"}
+                        <div className={(countAssignedRequirement(programCourses, program.id, "cs-math") > 0 || summary.csProgress.mathSatisfied) ? "text-green-600 font-semibold" : "text-slate-500 font-semibold"}>
+                          {(countAssignedRequirement(programCourses, program.id, "cs-math") > 0 || summary.csProgress.mathSatisfied) ? "✓ Done" : "Pending"}
                         </div>
                       </div>
                     </div>
@@ -973,40 +1066,51 @@ export default function App() {
 
                   {program.type !== "None" && program.value && summary && summary.isBio && summary.bioProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      <div className="grid gap-2 sm:grid-cols-4">
-                        {[
-                          { label: "Cell Intro", value: summary.bioProgress.introCell ? "✓" : "0/1" },
-                          { label: "Organismal Intro", value: summary.bioProgress.introOrganismal ? "✓" : "0/1" },
-                          { label: "200-level groups", value: `${[
-                            summary.bioProgress.groupCell,
-                            summary.bioProgress.groupSystems,
-                            summary.bioProgress.groupCommunity,
-                          ].filter(Boolean).length}/3` },
-                          { label: "Extra 200-level", value: `${summary.bioProgress.additional200}/${summary.bioProgress.additional200Required || 1}` },
-                        ].map(tile => (
-                          <div key={tile.label} className="rounded-lg bg-slate-50 px-3 py-2 text-center flex h-full flex-col items-center justify-between gap-1">
-                            <div className="text-[0.55rem] uppercase tracking-wide text-slate-500">{tile.label}</div>
-                            <div className="text-base font-semibold text-slate-900">{tile.value}</div>
+                      {(() => {
+                        const introCellAssigned = countAssignedRequirement(programCourses, program.id, "bio-intro-cell");
+                        const introOrgAssigned = countAssignedRequirement(programCourses, program.id, "bio-intro-organismal");
+                        const groupCellAssigned = countAssignedRequirement(programCourses, program.id, "bio-group-cell");
+                        const groupSystemsAssigned = countAssignedRequirement(programCourses, program.id, "bio-group-systems");
+                        const groupCommunityAssigned = countAssignedRequirement(programCourses, program.id, "bio-group-community");
+                        const groupFulfilled = [
+                          groupCellAssigned > 0 || summary.bioProgress.groupCell,
+                          groupSystemsAssigned > 0 || summary.bioProgress.groupSystems,
+                          groupCommunityAssigned > 0 || summary.bioProgress.groupCommunity,
+                        ].filter(Boolean).length;
+                        const tiles = [
+                          { label: "Cell Intro", value: introCellAssigned > 0 ? "✓" : summary.bioProgress.introCell ? "✓" : "0/1" },
+                          { label: "Organismal Intro", value: introOrgAssigned > 0 ? "✓" : summary.bioProgress.introOrganismal ? "✓" : "0/1" },
+                          { label: "200-level groups", value: `${groupFulfilled}/3` },
+                          { label: "Extra 200-level", value: `${countAssignedRequirement(programCourses, program.id, "bio-extra-200") || summary.bioProgress.additional200}/${summary.bioProgress.additional200Required || 1}` },
+                        ];
+                        return (
+                          <div className="grid gap-2 sm:grid-cols-4">
+                            {tiles.map(tile => (
+                              <div key={tile.label} className="rounded-lg bg-slate-50 px-3 py-2 text-center flex h-full flex-col items-center justify-between gap-1">
+                                <div className="text-[0.55rem] uppercase tracking-wide text-slate-500">{tile.label}</div>
+                                <div className="text-base font-semibold text-slate-900">{tile.value}</div>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
+                        );
+                      })()}
                       <div className="grid gap-2 sm:grid-cols-3">
                         <div className="rounded border px-3 py-2 text-center">
                           <div className="text-[0.55rem] uppercase text-slate-500">300-level BISC</div>
                           <div className="text-base font-semibold text-slate-900">
-                            {summary.bioProgress.level300}/{summary.bioProgress.level300Required}
+                            {countAssignedRequirement(programCourses, program.id, "bio-300") || summary.bioProgress.level300}/{summary.bioProgress.level300Required}
                           </div>
                         </div>
                         <div className="rounded border px-3 py-2 text-center">
                           <div className="text-[0.55rem] uppercase text-slate-500">BISC Elective</div>
                           <div className="text-base font-semibold text-slate-900">
-                            {summary.bioProgress.electiveCompleted}/{summary.bioProgress.electiveRequired}
+                            {countAssignedRequirement(programCourses, program.id, "bio-elective") || summary.bioProgress.electiveCompleted}/{summary.bioProgress.electiveRequired}
                           </div>
                         </div>
                         <div className="rounded border px-3 py-2 text-center">
                           <div className="text-[0.55rem] uppercase text-slate-500">Chemistry Courses</div>
                           <div className="text-sm font-semibold text-slate-900">
-                            {summary.bioProgress.chemIntroCompleted ? "Intro ✓" : "Intro"} / {summary.bioProgress.chemAdvancedCompleted ? "Adv ✓" : "Adv"}
+                            {(countAssignedRequirement(programCourses, program.id, "bio-chem-intro") > 0 || summary.bioProgress.chemIntroCompleted ? "Intro ✓" : "Intro")} / {(countAssignedRequirement(programCourses, program.id, "bio-chem-advanced") > 0 || summary.bioProgress.chemAdvancedCompleted ? "Adv ✓" : "Adv")}
                           </div>
                         </div>
                       </div>
@@ -1015,44 +1119,47 @@ export default function App() {
 
                   {program.type !== "None" && program.value && summary && summary.isAnthro && summary.anthroProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      <div className="grid gap-2 sm:grid-cols-4">
-                        {[
-                          { label: "ANTH 101", value: summary.anthroProgress.introPrimary ? "✓" : "0/1" },
-                          { label: "2nd Intro", value: summary.anthroProgress.introSecondary ? "✓" : "0/1" },
-                          { label: "ANTH 205", value: summary.anthroProgress.midCourse ? "✓" : "0/1" },
-                          { label: "ANTH 301", value: summary.anthroProgress.seminar ? "✓" : "0/1" },
-                        ].map(tile => (
-                          <div key={tile.label} className="rounded-lg bg-slate-50 px-3 py-2 text-center flex h-full flex-col items-center justify-between gap-1">
-                            <div className="text-[0.55rem] uppercase tracking-wide text-slate-500">{tile.label}</div>
-                            <div className="text-base font-semibold text-slate-900">{tile.value}</div>
+                      {(() => {
+                        const tiles = [
+                          { label: "ANTH 101", req: "anth-101", fallback: summary.anthroProgress.introPrimary ? "✓" : "0/1" },
+                          { label: "2nd Intro", req: "anth-2nd-intro", fallback: summary.anthroProgress.introSecondary ? "✓" : "0/1" },
+                          { label: "ANTH 205", req: "anth-205", fallback: summary.anthroProgress.midCourse ? "✓" : "0/1" },
+                          { label: "ANTH 301", req: "anth-301", fallback: summary.anthroProgress.seminar ? "✓" : "0/1" },
+                        ];
+                        return (
+                          <div className="grid gap-2 sm:grid-cols-4">
+                            {tiles.map(tile => {
+                              const assigned = countAssignedRequirement(programCourses, program.id, tile.req) > 0;
+                              return (
+                                <div key={tile.label} className="rounded-lg bg-slate-50 px-3 py-2 text-center flex h-full flex-col items-center justify-between gap-1">
+                                  <div className="text-[0.55rem] uppercase tracking-wide text-slate-500">{tile.label}</div>
+                                  <div className="text-base font-semibold text-slate-900">
+                                    {assigned ? "✓" : tile.fallback}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
-                        ))}
-                      </div>
+                        );
+                      })()}
                       <div className="grid gap-2 sm:grid-cols-3">
                         <div className="rounded border px-3 py-2 text-center">
                           <div className="text-[0.55rem] uppercase text-slate-500">Extra 300-level</div>
                           <div className="text-base font-semibold text-slate-900">
-                            {summary.anthroProgress.extra300Count}/{summary.anthroProgress.extra300Required}
+                            {countAssignedRequirement(programCourses, program.id, "anth-extra-300") || summary.anthroProgress.extra300Count}/{summary.anthroProgress.extra300Required}
                           </div>
                         </div>
                         <div className="rounded border px-3 py-2 text-center">
                           <div className="text-[0.55rem] uppercase text-slate-500">Anth electives</div>
                           <div className="text-base font-semibold text-slate-900">
-                            {summary.anthroProgress.electivesCompleted}/{summary.anthroProgress.electivesRequired}
+                            {countAssignedRequirement(programCourses, program.id, "anth-elective") || summary.anthroProgress.electivesCompleted}/{summary.anthroProgress.electivesRequired}
                           </div>
                         </div>
                         <div className="rounded border px-3 py-2 text-center">
                           <div className="text-[0.55rem] uppercase text-slate-500">Experience</div>
-                          <button
-                            type="button"
-                            onClick={() => toggleProgramExperience(program.id)}
-                            className={cx(
-                              "mt-1 rounded-full px-3 py-1 text-xs font-semibold",
-                              program.experienceComplete ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"
-                            )}
-                          >
-                            {summary.anthroProgress.experienceComplete ? "Marked" : "Mark complete"}
-                          </button>
+                          <div className="text-sm font-semibold text-slate-900">
+                            {countAssignedRequirement(programCourses, program.id, "anth-experience") > 0 || program.experienceComplete ? "Marked" : "Not yet"}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1060,36 +1167,66 @@ export default function App() {
 
                   {program.type !== "None" && program.value && summary && !summary.isSpecial && !summary.isCS && !summary.isBio && !summary.isAnthro && (
                     <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                      <div className="rounded-lg bg-slate-50 px-3 py-2">
-                        <div className="text-[0.55rem] uppercase text-slate-500">Required</div>
-                        <div className="text-base font-semibold text-slate-900">
-                          {summary.requiredCompleted}/{summary.requiredTotal}
-                        </div>
-                      </div>
-                      {summary.electiveTotal > 0 && (
-                        <div className="rounded-lg bg-slate-50 px-3 py-2">
-                          <div className="text-[0.55rem] uppercase text-slate-500">Electives</div>
-                          <div className="text-base font-semibold text-slate-900">
-                            {summary.electiveCompleted}/{summary.electiveTotal}
-                          </div>
-                        </div>
-                      )}
-                      {summary.mathTotal > 0 && (
-                        <div className="rounded-lg bg-slate-50 px-3 py-2">
-                          <div className="text-[0.55rem] uppercase text-slate-500">Supporting Math</div>
-                          <div className="text-base font-semibold text-slate-900">
-                            {summary.mathCompleted}/{summary.mathTotal}
-                          </div>
-                        </div>
-                      )}
-                      {summary.electiveTotal === 0 && summary.mathTotal === 0 && (
-                        <div className="rounded-lg bg-slate-50 px-3 py-2">
-                          <div className="text-[0.55rem] uppercase text-slate-500">Progress</div>
-                          <div className="text-base font-semibold text-slate-900">
-                            {summary.requiredCompleted}/{summary.requiredTotal || 1}
-                          </div>
-                        </div>
-                      )}
+                      {(() => {
+                        const manualRequired = new Set();
+                        let manualElective = 0;
+                        const manualMath = new Set();
+                        programCourses.forEach(course => {
+                          const reqId = getAssignedRequirementId(course, program.id);
+                          if (!reqId) return;
+                          if (reqId.startsWith("required-")) {
+                            manualRequired.add(reqId.replace("required-", ""));
+                          } else if (reqId === "generic-elective") {
+                            manualElective += 1;
+                          } else if (reqId.startsWith("support-")) {
+                            manualMath.add(reqId.replace("support-", ""));
+                          }
+                        });
+                        const cfg = summary.config || {};
+                        const manualRequiredCount = cfg.requiredCourses
+                          ? cfg.requiredCourses.filter(course => manualRequired.has(sanitizeReqKey(course))).length
+                          : 0;
+                        const manualMathCount = cfg.mathRequirements
+                          ? cfg.mathRequirements.filter(course => manualMath.has(sanitizeReqKey(course))).length
+                          : 0;
+                        const displayRequired = manualRequiredCount || summary.requiredCompleted;
+                        const displayElective = manualElective || summary.electiveCompleted;
+                        const displayMath = manualMathCount || summary.mathCompleted;
+                        return (
+                          <>
+                            <div className="rounded-lg bg-slate-50 px-3 py-2">
+                              <div className="text-[0.55rem] uppercase text-slate-500">Required</div>
+                              <div className="text-base font-semibold text-slate-900">
+                                {displayRequired}/{summary.requiredTotal}
+                              </div>
+                            </div>
+                            {summary.electiveTotal > 0 && (
+                              <div className="rounded-lg bg-slate-50 px-3 py-2">
+                                <div className="text-[0.55rem] uppercase text-slate-500">Electives</div>
+                                <div className="text-base font-semibold text-slate-900">
+                                  {Math.min(displayElective, summary.electiveTotal)}/{summary.electiveTotal}
+                                </div>
+                              </div>
+                            )}
+                            {summary.mathTotal > 0 && (
+                              <div className="rounded-lg bg-slate-50 px-3 py-2">
+                                <div className="text-[0.55rem] uppercase text-slate-500">Supporting Math</div>
+                                <div className="text-base font-semibold text-slate-900">
+                                  {Math.min(displayMath, summary.mathTotal)}/{summary.mathTotal}
+                                </div>
+                              </div>
+                            )}
+                            {summary.electiveTotal === 0 && summary.mathTotal === 0 && (
+                              <div className="rounded-lg bg-slate-50 px-3 py-2">
+                                <div className="text-[0.55rem] uppercase text-slate-500">Progress</div>
+                                <div className="text-base font-semibold text-slate-900">
+                                  {displayRequired}/{summary.requiredTotal || 1}
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
@@ -1908,6 +2045,7 @@ const renderAnthroMajor = (majorReq, allCourses) => {
         addSlot={addSlot}
         removeSlot={removeSlot}
         programSelections={programSelections}
+        programRequirementOptions={programRequirementOptionsMap}
       />
     </div>
   );
