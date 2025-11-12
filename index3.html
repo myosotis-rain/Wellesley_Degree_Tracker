@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Wellesley 4-Year Planner</title>
+  <title>Wellesley Academic Planner</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
@@ -87,15 +87,15 @@
       { id: 4, label: "Senior Year", termLabels: ["Fall", "Spring"] },
     ];
 
-    const defaultTerms = [
-      { id: "Y1-F", label: "First Year • Fall",  year: 1 },
-      { id: "Y1-S", label: "First Year • Spring", year: 1 },
-      { id: "Y2-F", label: "Sophomore • Fall",   year: 2 },
-      { id: "Y2-S", label: "Sophomore • Spring", year: 2 },
-      { id: "Y3-F", label: "Junior • Fall",      year: 3 },
-      { id: "Y3-S", label: "Junior • Spring",    year: 3 },
-      { id: "Y4-F", label: "Senior • Fall",      year: 4 },
-      { id: "Y4-S", label: "Senior • Spring",    year: 4 },
+    const getDefaultTerms = (startYear = 2024) => [
+      { id: "Y1-F", label: `First Year • Fall ${startYear}`,  year: 1, calendarYear: startYear },
+      { id: "Y1-S", label: `First Year • Spring ${startYear + 1}`, year: 1, calendarYear: startYear + 1 },
+      { id: "Y2-F", label: `Sophomore • Fall ${startYear + 1}`,   year: 2, calendarYear: startYear + 1 },
+      { id: "Y2-S", label: `Sophomore • Spring ${startYear + 2}`, year: 2, calendarYear: startYear + 2 },
+      { id: "Y3-F", label: `Junior • Fall ${startYear + 2}`,      year: 3, calendarYear: startYear + 2 },
+      { id: "Y3-S", label: `Junior • Spring ${startYear + 3}`,    year: 3, calendarYear: startYear + 3 },
+      { id: "Y4-F", label: `Senior • Fall ${startYear + 3}`,      year: 4, calendarYear: startYear + 3 },
+      { id: "Y4-S", label: `Senior • Spring ${startYear + 4}`,    year: 4, calendarYear: startYear + 4 },
     ].map(t => ({ ...t, slots: [newSlot(), newSlot(), newSlot(), newSlot()] }));
 
     // ---- UI helpers ----
@@ -152,17 +152,75 @@
     };
 
     // ---- Term cards (left column) ----
-    const TermSummaryCard = ({ term, onOpen }) => {
+    const TermSummaryCard = ({ term, onOpen, onRemove, canRemove, onYearChange }) => {
       const nonEmptySlots = term.slots.filter(s => s.code || s.title);
+      const [isEditingYear, setIsEditingYear] = useState(false);
+      const [tempYear, setTempYear] = useState(term.calendarYear);
+      
+      const handleYearSubmit = () => {
+        if (tempYear !== term.calendarYear) {
+          onYearChange(term.id, tempYear);
+        }
+        setIsEditingYear(false);
+      };
+      
+      const handleYearCancel = () => {
+        setTempYear(term.calendarYear);
+        setIsEditingYear(false);
+      };
+      
       return (
-        <button
-          type="button"
-          onClick={onOpen}
-          className="group flex h-full flex-col rounded-xl border bg-white px-3 py-2 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-        >
+        <div className="relative group">
+          <button
+            type="button"
+            onClick={onOpen}
+            className="group flex h-full w-full flex-col rounded-xl border bg-white px-3 py-2 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+          >
           <div className="mb-1 flex items-center justify-between">
-            <div className="text-[0.75rem] font-semibold text-slate-800">
-              {term.label.split("•")[1] || term.label}
+            <div className="flex items-center gap-1">
+              <div className="text-[0.75rem] font-semibold text-slate-800">
+                {term.label.split("•")[1]?.split(' ')[0] || term.label.split("•")[0]}
+              </div>
+              {isEditingYear ? (
+                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="number"
+                    value={tempYear}
+                    onChange={(e) => setTempYear(parseInt(e.target.value))}
+                    className="w-16 rounded border px-1 text-[0.65rem]"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleYearSubmit();
+                      if (e.key === 'Escape') handleYearCancel();
+                    }}
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={handleYearSubmit}
+                    className="text-[0.6rem] text-green-600 hover:text-green-700"
+                  >
+                    ✓
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleYearCancel}
+                    className="text-[0.6rem] text-red-600 hover:text-red-700"
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsEditingYear(true);
+                  }}
+                  className="text-[0.65rem] text-slate-500 hover:text-indigo-600 underline"
+                >
+                  {term.calendarYear}
+                </button>
+              )}
             </div>
             <span className="text-[0.65rem] text-slate-400 group-hover:text-indigo-500">
               Edit
@@ -195,7 +253,20 @@
               </div>
             )}
           </div>
-        </button>
+          </button>
+          {canRemove && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove();
+              }}
+              className="absolute -right-2 -top-2 rounded-full border border-rose-200 bg-white px-2 py-0.5 text-[0.6rem] text-rose-600 opacity-0 shadow-sm transition hover:bg-rose-50 group-hover:opacity-100"
+            >
+              ×
+            </button>
+          )}
+        </div>
       );
     };
 
@@ -204,7 +275,20 @@
       if (!term) return null;
 
       const updateField = (slotIdx, field, value) => {
-        updateSlot(term.id, slotIdx, (s) => ({ ...s, [field]: value }));
+        updateSlot(term.id, slotIdx, (s) => {
+          const updated = { ...s, [field]: value };
+          // Auto-detect course level from course code
+          if (field === 'code' && value) {
+            const match = value.match(/(\d{3})/); // Find 3-digit number
+            if (match) {
+              const courseNum = parseInt(match[1]);
+              if (courseNum >= 100 && courseNum < 200) updated.level = 100;
+              else if (courseNum >= 200 && courseNum < 300) updated.level = 200;
+              else if (courseNum >= 300) updated.level = 300;
+            }
+          }
+          return updated;
+        });
       };
 
       const toggleTag = (slotIdx, id) => {
@@ -413,9 +497,10 @@
 
     // ---- Main App ----
     function App() {
-      const [terms, setTerms] = useState(defaultTerms);
+      const [terms, setTerms] = useState(getDefaultTerms());
       const [activeTermId, setActiveTermId] = useState(null);
       const [activeTab, setActiveTab] = useState("plan");
+      const [startYear, setStartYear] = useState(2024);
 
       const termById = (id) => terms.find(t => t.id === id) || null;
 
@@ -452,6 +537,41 @@
               : { ...t, slots: t.slots.filter((_, i) => i !== slotIdx) }
           )
         );
+      };
+
+      const removeTerm = (termId) => {
+        setTerms(prev => prev.filter(t => t.id !== termId));
+        if (activeTermId === termId) setActiveTermId(null);
+      };
+
+      const addYear = () => {
+        const maxYear = Math.max(...terms.map(t => t.year), 0);
+        const newYear = maxYear + 1;
+        const latestCalendarYear = Math.max(...terms.map(t => t.calendarYear || startYear), startYear);
+        
+        const newTerms = [
+          {
+            id: `Y${newYear}-F`,
+            label: `Year ${newYear} • Fall ${latestCalendarYear + 1}`,
+            year: newYear,
+            calendarYear: latestCalendarYear + 1,
+            slots: [newSlot(), newSlot(), newSlot(), newSlot()]
+          },
+          {
+            id: `Y${newYear}-S`,
+            label: `Year ${newYear} • Spring ${latestCalendarYear + 2}`,
+            year: newYear,
+            calendarYear: latestCalendarYear + 2,
+            slots: [newSlot(), newSlot(), newSlot(), newSlot()]
+          }
+        ];
+        
+        setTerms(prev => [...prev, ...newTerms]);
+      };
+
+      const updateStartYear = (year) => {
+        setStartYear(year);
+        setTerms(getDefaultTerms(year));
       };
 
       // ---- Progress calculations ----
@@ -516,6 +636,15 @@
 
       const getReq = (id) => progress.detail.find(r => r.id === id) || { have: 0, targetCount: 1, pct: 0 };
 
+      const canRemoveTerm = (termId) => {
+        const sortedTerms = [...terms].sort((a, b) => {
+          if (a.year !== b.year) return b.year - a.year;
+          return a.id.includes('-S') ? 1 : -1;
+        });
+        const lastTwoTerms = sortedTerms.slice(0, 2).map(t => t.id);
+        return lastTwoTerms.includes(termId);
+      };
+
       // ---- Views ----
       const renderPlan = () => (
         <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
@@ -537,12 +666,18 @@
                       <TermSummaryCard
                         term={fall}
                         onOpen={() => setActiveTermId(fall.id)}
+                        onRemove={() => removeTerm(fall.id)}
+                        canRemove={canRemoveTerm(fall.id)}
+                        onYearChange={updateTermYear}
                       />
                     )}
                     {spring && (
                       <TermSummaryCard
                         term={spring}
                         onOpen={() => setActiveTermId(spring.id)}
+                        onRemove={() => removeTerm(spring.id)}
+                        canRemove={canRemoveTerm(spring.id)}
+                        onYearChange={updateTermYear}
                       />
                     )}
                   </div>
@@ -696,7 +831,6 @@
                       <th className="border-b px-2 py-1 text-left">Code</th>
                       <th className="border-b px-2 py-1 text-left">Title</th>
                       <th className="border-b px-2 py-1 text-left">Units</th>
-                      <th className="border-b px-2 py-1 text-left">Level</th>
                       <th className="border-b px-2 py-1 text-left">Tags</th>
                       <th className="border-b px-2 py-1 text-left">Departments</th>
                     </tr>
@@ -708,7 +842,6 @@
                         <td className="border-b px-2 py-1">{r.code}</td>
                         <td className="border-b px-2 py-1">{r.title}</td>
                         <td className="border-b px-2 py-1">{r.credits}</td>
-                        <td className="border-b px-2 py-1">{r.level}</td>
                         <td className="border-b px-2 py-1">
                           {r.tags.join(", ")}
                         </td>
@@ -729,35 +862,55 @@
         <div className="mx-auto max-w-6xl p-6">
           {/* Top bar */}
           <header className="mb-4 flex flex-col gap-3 border-b pb-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
+            <div className="flex-1">
               <h1 className="text-xl font-semibold text-slate-900">
-                Wellesley 4-Year Planner
+                Wellesley Academic Planner
               </h1>
               <p className="text-xs text-slate-500">
-                Plan four years, track requirements, and see your progress at a glance.
+                Plan academic years, track requirements, and see your progress at a glance.
               </p>
             </div>
-            <nav className="flex gap-2 text-xs">
-              {[
-                { id: "plan", label: "Planner" },
-                { id: "reqs", label: "Requirements" },
-                { id: "courses", label: "Courses" },
-              ].map(tab => (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-slate-600">Start Year:</label>
+                <input
+                  type="number"
+                  value={startYear}
+                  onChange={(e) => updateStartYear(parseInt(e.target.value))}
+                  className="w-20 rounded border px-2 py-1 text-xs"
+                  min="2020"
+                  max="2030"
+                />
                 <button
-                  key={tab.id}
                   type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={cx(
-                    "rounded-full px-3 py-1.5",
-                    activeTab === tab.id
-                      ? "bg-slate-900 text-white"
-                      : "bg-white text-slate-700 border"
-                  )}
+                  onClick={addYear}
+                  className="rounded bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700"
                 >
-                  {tab.label}
+                  + Add Year
                 </button>
-              ))}
-            </nav>
+              </div>
+              <nav className="flex gap-2 text-xs">
+                {[
+                  { id: "plan", label: "Planner" },
+                  { id: "reqs", label: "Requirements" },
+                  { id: "courses", label: "Courses" },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={cx(
+                      "rounded-full px-3 py-1.5",
+                      activeTab === tab.id
+                        ? "bg-slate-900 text-white"
+                        : "bg-white text-slate-700 border"
+                    )}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </nav>
+            </div>
           </header>
 
           {activeTab === "plan" && renderPlan()}
