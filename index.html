@@ -139,7 +139,9 @@
       "THST": "Theatre Studies",
       "WGST": "Women's and Gender Studies",
       "WRIT": "Writing Program",
-      "PE": "Physical Education"
+      "PE": "Physical Education",
+      "MAS": "Media Arts and Sciences",
+      "CAMS": "Cinema and Media Studies"
     };
 
     const detectDepartmentFromCode = (courseCode) => {
@@ -739,6 +741,35 @@
         electiveCourses: 5,
         mathRequirements: ["QR 140" ,"ECON 103"],
         description: "Complete core sequence and 5 electives with quantitative focus"
+      },
+      "Media Arts and Sciences": {
+        introductoryCourses: {
+          visualAnalysis: ["ARTH 100", "WRIT 107", "CAMS 100"],
+          studioFoundation: ["Any 100-level ARTS course"],
+          computerScience: ["Any 100-level CS course"]
+        },
+        coreCourses: {
+          studioCore: [
+            "ARTS 205", "ARTS 207", "ARTS 208", "ARTS 216", "ARTS 219", "ARTS 220", 
+            "ARTS 221", "ARTS 222", "ARTS 223", "ARTS 255", "ARTS 260", "ARTS 265",
+            "ARTS 307", "ARTS 308", "ARTS 313", "ARTS 317H", "ARTS 318H", "ARTS 321",
+            "ARTS 322", "ARTS 323", "ARTS 336", "ARTS 365", "ARTS 366", "CAMS 301",
+            "MUS 275", "MUS 277"
+          ],
+          csCore: [
+            "CS 110", "CS 111", "CS 121", "CS 200", "CS 204", "CS 220", "CS 221",
+            "CS 230", "CS 232", "CS 304", "CS 307", "CS 315", "CS 317", "CS 320",
+            "CS 321", "CS 323", "CS 325", "CS 365", "CS 366"
+          ]
+        },
+        capstoneRequired: 1,
+        capstoneCourses: [
+          "ARTS 321", "ARTS 322", "ARTS 365", "ARTS 366", "CS 365", "CS 366"
+        ],
+        mediaCulture: 1,
+        advancedProduction: 1,
+        portfolioRequired: true,
+        description: "Interdisciplinary major combining studio arts, computer science, and media culture. Requires 3 intro courses, 6 core courses (3 studio + 3 CS), 1 capstone, and portfolio."
       }
     };
 
@@ -1388,6 +1419,137 @@
         );
       };
 
+      const renderMASMajor = (majorReq, allCourses) => {
+        // Check introductory courses
+        const visualAnalysis = allCourses.filter(course => 
+          majorReq.introductoryCourses.visualAnalysis.some(req => course.code.includes(req.replace(" ", " ")))
+        );
+        const studioFoundation = allCourses.filter(course => 
+          course.code.match(/^ARTS\s+1\d{2}/)
+        );
+        const csIntro = allCourses.filter(course => 
+          course.code.match(/^CS\s+1\d{2}/)
+        );
+        
+        // Check core courses
+        const studioCore = allCourses.filter(course =>
+          majorReq.coreCourses.studioCore.some(req => course.code === req)
+        );
+        const csCore = allCourses.filter(course =>
+          majorReq.coreCourses.csCore.some(req => course.code === req)
+        );
+        
+        // Check capstone
+        const capstone = allCourses.filter(course =>
+          majorReq.capstoneCourses.some(req => course.code === req)
+        );
+        
+        return (
+          <div className="mt-4 space-y-4">
+            <div className="rounded-2xl border bg-white p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="text-sm font-semibold text-slate-900">Media Arts and Sciences Major</div>
+                <select
+                  value={selectedMajor}
+                  onChange={(e) => setSelectedMajor(e.target.value)}
+                  className="rounded border px-3 py-1 text-sm"
+                >
+                  {Object.keys(majorRequirements).map(major => (
+                    <option key={major} value={major}>{major}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="mb-4 text-xs text-slate-600">
+                {majorReq.description}
+              </div>
+              
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {/* Introductory Requirements */}
+                <div className="rounded-lg border p-3">
+                  <div className="mb-2 text-sm font-medium">Introductory Courses (3 required)</div>
+                  <div className="space-y-2 text-xs">
+                    <div className={cx(
+                      "p-2 rounded",
+                      visualAnalysis.length > 0 ? "bg-green-50 text-green-700" : "bg-gray-50 text-gray-600"
+                    )}>
+                      <div className="font-medium">Visual Analysis</div>
+                      <div className="text-[0.65rem]">ARTH 100/WRIT 107 or CAMS 100</div>
+                      {visualAnalysis.length > 0 && <div className="text-[0.6rem] mt-1">✓ {visualAnalysis[0].code}</div>}
+                    </div>
+                    <div className={cx(
+                      "p-2 rounded",
+                      studioFoundation.length > 0 ? "bg-green-50 text-green-700" : "bg-gray-50 text-gray-600"
+                    )}>
+                      <div className="font-medium">Studio Foundation</div>
+                      <div className="text-[0.65rem]">Any 100-level ARTS course</div>
+                      {studioFoundation.length > 0 && <div className="text-[0.6rem] mt-1">✓ {studioFoundation[0].code}</div>}
+                    </div>
+                    <div className={cx(
+                      "p-2 rounded",
+                      csIntro.length > 0 ? "bg-green-50 text-green-700" : "bg-gray-50 text-gray-600"
+                    )}>
+                      <div className="font-medium">Computer Science</div>
+                      <div className="text-[0.65rem]">Any 100-level CS course</div>
+                      {csIntro.length > 0 && <div className="text-[0.6rem] mt-1">✓ {csIntro[0].code}</div>}
+                    </div>
+                  </div>
+                  <div className="mt-2 text-xs text-slate-500">
+                    {(visualAnalysis.length > 0 ? 1 : 0) + (studioFoundation.length > 0 ? 1 : 0) + (csIntro.length > 0 ? 1 : 0)}/3 completed
+                  </div>
+                </div>
+                
+                {/* Core Courses */}
+                <div className="rounded-lg border p-3">
+                  <div className="mb-2 text-sm font-medium">Core Courses (6 required)</div>
+                  <div className="space-y-2 text-xs">
+                    <div className="p-2 bg-blue-50 rounded">
+                      <div className="font-medium">Studio Core (3 required)</div>
+                      <div className="text-[0.65rem] text-slate-600">Choose from ARTS/CAMS/MUS studio courses</div>
+                      {studioCore.slice(0, 3).map((course, i) => (
+                        <div key={i} className="text-[0.6rem] text-blue-700 mt-1">✓ {course.code}</div>
+                      ))}
+                      <div className="text-[0.6rem] mt-1">{Math.min(studioCore.length, 3)}/3 completed</div>
+                    </div>
+                    <div className="p-2 bg-purple-50 rounded">
+                      <div className="font-medium">CS Core (3 required)</div>
+                      <div className="text-[0.65rem] text-slate-600">Choose from CS core courses</div>
+                      {csCore.slice(0, 3).map((course, i) => (
+                        <div key={i} className="text-[0.6rem] text-purple-700 mt-1">✓ {course.code}</div>
+                      ))}
+                      <div className="text-[0.6rem] mt-1">{Math.min(csCore.length, 3)}/3 completed</div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Capstone & Other Requirements */}
+                <div className="rounded-lg border p-3">
+                  <div className="mb-2 text-sm font-medium">Additional Requirements</div>
+                  <div className="space-y-2 text-xs">
+                    <div className={cx(
+                      "p-2 rounded",
+                      capstone.length > 0 ? "bg-green-50 text-green-700" : "bg-gray-50 text-gray-600"
+                    )}>
+                      <div className="font-medium">Capstone Course</div>
+                      <div className="text-[0.65rem]">1 required (senior year)</div>
+                      {capstone.length > 0 && <div className="text-[0.6rem] mt-1">✓ {capstone[0].code}</div>}
+                    </div>
+                    <div className="p-2 bg-yellow-50 rounded">
+                      <div className="font-medium">Media Culture Course</div>
+                      <div className="text-[0.65rem]">1 recommended</div>
+                    </div>
+                    <div className="p-2 bg-orange-50 rounded">
+                      <div className="font-medium">Online Portfolio</div>
+                      <div className="text-[0.65rem]">Required senior year</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      };
+
       const renderMajor = () => {
         const majorReq = majorRequirements[selectedMajor];
         if (!majorReq) return null;
@@ -1401,16 +1563,21 @@
           });
         });
         
-        const completedRequired = majorReq.requiredCourses.filter(req => 
+        // Handle different major structures
+        if (selectedMajor === "Media Arts and Sciences") {
+          return renderMASMajor(majorReq, allCourses);
+        }
+        
+        const completedRequired = majorReq.requiredCourses ? majorReq.requiredCourses.filter(req => 
           allCourses.some(course => course.code === req)
-        );
+        ) : [];
         
         const majorElectives = allCourses.filter(course => {
           const dept = detectDepartmentFromCode(course.code);
           const majorDept = selectedMajor === "Computer Science" ? "Computer Science" : 
                            selectedMajor === "Mathematics" ? "Mathematics" :
                            selectedMajor === "Economics" ? "Economics" : null;
-          return dept === majorDept && !majorReq.requiredCourses.includes(course.code) && course.level >= 200;
+          return dept === majorDept && !majorReq.requiredCourses?.includes(course.code) && course.level >= 200;
         });
         
         const completedMath = majorReq.mathRequirements ? 
