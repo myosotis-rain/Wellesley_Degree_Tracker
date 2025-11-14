@@ -40,6 +40,13 @@ const DEFAULT_PROGRAM_SELECTIONS = [
 const MAX_CUSTOM_MAJOR_REQUIREMENTS = 15;
 const DEFAULT_CUSTOM_MAJOR_COUNT = 9;
 
+const normalizeCourseCode = (code = "") => code.trim().toUpperCase();
+const compactCourseCode = (code = "") => normalizeCourseCode(code).replace(/\s+/g, "");
+const codesMatch = (codeA = "", codeB = "") => {
+  if (!codeA || !codeB) return false;
+  return compactCourseCode(codeA) === compactCourseCode(codeB);
+};
+
 const ensureProgramSelections = (saved) => {
   if (!Array.isArray(saved)) return DEFAULT_PROGRAM_SELECTIONS;
   return DEFAULT_PROGRAM_SELECTIONS.map(template => {
@@ -85,6 +92,20 @@ const summarizeProgramProgress = (programName, courses, programMeta = {}) => {
       config,
       isEnglish: true,
       englishProgress: computeEnglishProgress(courses, config.englishStructure),
+    };
+  }
+  if (config.afrStructure) {
+    return {
+      config,
+      isAfr: true,
+      afrProgress: computeAfrProgress(courses, config.afrStructure),
+    };
+  }
+  if (config.amerStructure) {
+    return {
+      config,
+      isAmst: true,
+      amstProgress: computeAmstProgress(courses, config.amerStructure),
     };
   }
 
@@ -180,6 +201,16 @@ const programRequirementOptionSets = {
     { id: "english-pre1800", label: "Pre-1800 Literature", required: 2 },
     { id: "english-creative-writing", label: "Creative Writing Course", required: 4 },
   ],
+  "Africana Studies": [
+    { id: "afr-intro", label: "AFR 105 / AFR 210", required: 1 },
+    { id: "afr-300", label: "300-level AFR courses", required: 2 },
+    { id: "afr-colloquium", label: "Africana Colloquium attendance", required: 1 },
+  ],
+  "American Studies": [
+    { id: "amst-intro", label: "AMST 101 / 121", required: 1 },
+    { id: "amst-core", label: "Core AMST courses", required: 5 },
+    { id: "amst-300", label: "300-level AMST", required: 2 },
+  ],
   Mathematics: [
     { id: "math-115", label: "MATH 115", required: 1 },
     { id: "math-116", label: "MATH 116 or 120", required: 1 },
@@ -200,7 +231,7 @@ const programRequirementOptionSets = {
     { id: "econ-300", label: "300-level ECON", required: 2 },
     { id: "econ-elective", label: "Economics / QR260 / STAT260 / QR309 / STAT309", required: 1 },
   ],
-  "Individual / Custom Major": [],
+  "Custom Major": [],
 };
 
 const getRequirementOptionsForMajor = (majorName) => {
@@ -596,6 +627,39 @@ const computeEnglishProgress = (courses, structure) => {
   };
 };
 
+const computeAfrProgress = (courses, structure = {}) => {
+  const introCompleted = courses.some(course =>
+    (structure.introOptions || []).some(opt => codesMatch(course.code, opt))
+  );
+  const level300Count = courses.filter(course => (course.level || 0) >= 300).length;
+  return {
+    introCompleted,
+    level300Count,
+    level300Required: structure.level300Required || 2,
+    totalCourses: courses.length,
+  };
+};
+
+const computeAmstProgress = (courses, structure = {}) => {
+  const introCompleted = courses.some(course =>
+    (structure.introOptions || []).some(opt => codesMatch(course.code, opt))
+  );
+  const coreCourses = courses.filter(course => detectDepartmentFromCode(course.code) === "American Studies");
+  const coreCount = coreCourses.length;
+  const level300Count = coreCourses.filter(course => (course.level || 0) >= 300).length;
+  const electivesCount = Math.max(courses.length - coreCount, 0);
+  return {
+    introCompleted,
+    coreCount,
+    coreRequired: structure.coreCoursesRequired || 5,
+    level300Count,
+    level300Required: structure.level300Required || 2,
+    electivesCount,
+    electivesRequired: structure.electiveCoursesRequired || 3,
+    totalCourses: courses.length,
+  };
+};
+
 // ---- Main App ----
 export default function App() {
   const savedDataRef = useRef(loadFromLocalStorage());
@@ -770,7 +834,14 @@ export default function App() {
     label: yearLabels[y.id] || y.label
   }));
 
-  const programOptions = Object.keys(majorRequirements);
+const majorOptions = useMemo(() => {
+  const names = Object.keys(majorRequirements).sort((a, b) => a.localeCompare(b));
+  if (names.includes("Custom Major")) {
+    return ["Custom Major", ...names.filter(name => name !== "Custom Major")];
+  }
+  return names;
+}, []);
+  const programOptions = majorOptions;
 
   const programRequirementOptionsMap = useMemo(() => {
     const entries = programSelections.map(program => [
@@ -840,16 +911,6 @@ const getCoursesForProgram = (programId) => {
   const flagged = allCourses.filter(course => course.programs?.[programId]);
   if (flagged.length > 0) return flagged;
   return allCourses;
-};
-
-const normalizeCourseCode = (code = "") => code.trim().toUpperCase();
-const compactCourseCode = (code = "") => normalizeCourseCode(code).replace(/\s+/g, "");
-const codesMatch = (codeA = "", codeB = "") => {
-  if (!codeA || !codeB) return false;
-  const normA = normalizeCourseCode(codeA);
-  const normB = normalizeCourseCode(codeB);
-  if (normA === normB) return true;
-  return compactCourseCode(codeA) === compactCourseCode(codeB);
 };
 
 const getMajorRelevantCourses = (majorName, allCourses, programSelections) => {
@@ -1566,6 +1627,70 @@ const TotalUnitsCard = ({ stat, className = "" }) => {
                     </div>
                   )}
 
+                  {program.type !== "None" && program.value && summary && summary.isAfr && summary.afrProgress && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      <div className="flex justify-center py-2">
+                        <RingStat pct={requirementProgress.pct} label="Major progress" subtitle={requirementProgress.subtitle} />
+                      </div>
+                      <TotalUnitsCard stat={totalUnitsStat} />
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <div className="rounded border px-3 py-2 text-center">
+                          <div className="text-[0.55rem] uppercase text-slate-500">Intro Course</div>
+                          <div className="text-base font-semibold text-slate-900">
+                            {countAssignedRequirement(programCourses, program.id, "afr-intro") > 0 || summary.afrProgress.introCompleted ? "✓ AFR 105/210" : "Pending"}
+                          </div>
+                        </div>
+                        <div className="rounded border px-3 py-2 text-center">
+                          <div className="text-[0.55rem] uppercase text-slate-500">300-level AFR</div>
+                          <div className="text-base font-semibold text-slate-900">
+                            {countAssignedRequirement(programCourses, program.id, "afr-300") || summary.afrProgress.level300Count}/{summary.afrProgress.level300Required}
+                          </div>
+                        </div>
+                        <div className="rounded border px-3 py-2 text-center">
+                          <div className="text-[0.55rem] uppercase text-slate-500">Colloquium</div>
+                          <div className="text-sm font-semibold text-slate-900">
+                            {countAssignedRequirement(programCourses, program.id, "afr-colloquium") > 0 ? "Tracked" : "Attend each term"}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="rounded border border-dashed px-3 py-2 text-[0.6rem] text-slate-600">
+                        Choose or design a concentration (Africa, Caribbean & Latin America, United States, or General Africana). Ensure your plan spans multiple regions and disciplines.
+                      </div>
+                    </div>
+                  )}
+
+                  {program.type !== "None" && program.value && summary && summary.isAmst && summary.amstProgress && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      <div className="flex justify-center py-2">
+                        <RingStat pct={requirementProgress.pct} label="Major progress" subtitle={requirementProgress.subtitle} />
+                      </div>
+                      <TotalUnitsCard stat={totalUnitsStat} />
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <div className="rounded border px-3 py-2 text-center">
+                          <div className="text-[0.55rem] uppercase text-slate-500">Intro AMST</div>
+                          <div className="text-base font-semibold text-slate-900">
+                            {countAssignedRequirement(programCourses, program.id, "amst-intro") > 0 || summary.amstProgress.introCompleted ? "✓ 101/121" : "Pending"}
+                          </div>
+                        </div>
+                        <div className="rounded border px-3 py-2 text-center">
+                          <div className="text-[0.55rem] uppercase text-slate-500">AMST Core</div>
+                          <div className="text-base font-semibold text-slate-900">
+                            {countAssignedRequirement(programCourses, program.id, "amst-core") || summary.amstProgress.coreCount}/{summary.amstProgress.coreRequired}
+                          </div>
+                        </div>
+                        <div className="rounded border px-3 py-2 text-center">
+                          <div className="text-[0.55rem] uppercase text-slate-500">300-level AMST</div>
+                          <div className="text-base font-semibold text-slate-900">
+                            {countAssignedRequirement(programCourses, program.id, "amst-300") || summary.amstProgress.level300Count}/{summary.amstProgress.level300Required}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="rounded border border-dashed px-3 py-2 text-[0.6rem] text-slate-600">
+                        Build a concentration (e.g., race/class/gender, comparative ethnic studies, Asian American or Latinx Studies) with at least three thematically linked courses in consultation with your advisor.
+                      </div>
+                    </div>
+                  )}
+
                   {program.type !== "None" && program.value && summary && summary.isAnthro && summary.anthroProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
                       <div className="flex justify-center py-2">
@@ -1869,7 +1994,7 @@ const renderMASMajor = (majorReq, courses) => {
               onChange={(e) => setSelectedMajor(e.target.value)}
               className="rounded border px-3 py-1 text-sm"
             >
-              {Object.keys(majorRequirements).map(major => (
+              {majorOptions.map(major => (
                 <option key={major} value={major}>{major}</option>
               ))}
             </select>
@@ -1997,7 +2122,7 @@ const renderCSMajor = (majorReq, courses) => {
             onChange={(e) => setSelectedMajor(e.target.value)}
             className="rounded border px-3 py-1 text-sm"
           >
-            {Object.keys(majorRequirements).map(major => (
+            {majorOptions.map(major => (
               <option key={major} value={major}>{major}</option>
             ))}
           </select>
@@ -2096,7 +2221,7 @@ const renderBioMajor = (majorReq, courses) => {
             className="rounded border px-3 py-1 text-sm"
           >
             <option value="">Select a major</option>
-            {Object.keys(majorRequirements).map(major => (
+            {majorOptions.map(major => (
               <option key={major} value={major}>{major}</option>
             ))}
           </select>
@@ -2210,14 +2335,14 @@ const renderCustomMajor = () => {
     <div className="mt-4 space-y-4">
       <div className="rounded-2xl border bg-white p-4">
         <div className="mb-3 flex items-center justify-between">
-          <div className="text-sm font-semibold text-slate-900">Individual / Custom Major</div>
+          <div className="text-sm font-semibold text-slate-900">Custom Major</div>
           <select
             value={selectedMajor}
             onChange={(e) => setSelectedMajor(e.target.value)}
             className="rounded border px-3 py-1 text-sm"
           >
             <option value="">Select a major</option>
-            {Object.keys(majorRequirements).map(major => (
+            {majorOptions.map(major => (
               <option key={major} value={major}>{major}</option>
             ))}
           </select>
@@ -2270,7 +2395,7 @@ const renderMathMajor = (majorReq, courses) => {
             className="rounded border px-3 py-1 text-sm"
           >
             <option value="">Select a major</option>
-            {Object.keys(majorRequirements).map(major => (
+            {majorOptions.map(major => (
               <option key={major} value={major}>{major}</option>
             ))}
           </select>
@@ -2376,7 +2501,7 @@ const renderEconMajor = (majorReq, courses) => {
             className="rounded border px-3 py-1 text-sm"
           >
             <option value="">Select a major</option>
-            {Object.keys(majorRequirements).map(major => (
+            {majorOptions.map(major => (
               <option key={major} value={major}>{major}</option>
             ))}
           </select>
@@ -2495,7 +2620,7 @@ const renderEnglishMajor = (majorReq, relevantCourses) => {
             className="rounded border px-3 py-1 text-sm"
           >
             <option value="">Select a major</option>
-            {Object.keys(majorRequirements).map(major => (
+            {majorOptions.map(major => (
               <option key={major} value={major}>{major}</option>
             ))}
           </select>
@@ -2558,7 +2683,7 @@ const renderAnthroMajor = (majorReq, courses) => {
             className="rounded border px-3 py-1 text-sm"
           >
             <option value="">Select a major</option>
-            {Object.keys(majorRequirements).map(major => (
+            {majorOptions.map(major => (
               <option key={major} value={major}>{major}</option>
             ))}
           </select>
@@ -2631,6 +2756,140 @@ const renderAnthroMajor = (majorReq, courses) => {
   );
 };
 
+const renderAfrMajor = (majorReq, courses) => {
+  const struct = majorReq.afrStructure || {};
+  const progress = computeAfrProgress(courses, struct);
+  const introLabel = struct.introOptions ? struct.introOptions.join(" / ") : "AFR 105";
+  const totalTarget = majorReq.unitTarget || 9;
+
+  return (
+    <div className="mt-4 space-y-4">
+      <div className="rounded-2xl border bg-white p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="text-sm font-semibold text-slate-900">Africana Studies Major</div>
+          <select
+            value={selectedMajor}
+            onChange={(e) => setSelectedMajor(e.target.value)}
+            className="rounded border px-3 py-1 text-sm"
+          >
+            <option value="">Select a major</option>
+            {Object.keys(majorRequirements).map(major => (
+              <option key={major} value={major}>{major}</option>
+            ))}
+          </select>
+        </div>
+
+        {renderMajorIntro(majorReq)}
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-lg border p-3">
+            <div className="mb-2 text-sm font-medium">Intro requirement</div>
+            <div className="text-xs text-slate-500 mb-1">{introLabel}</div>
+            <div className={cx(
+              "rounded border px-3 py-2 text-center text-sm font-semibold",
+              progress.introCompleted ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600"
+            )}>
+              {progress.introCompleted ? "Completed" : "Pending"}
+            </div>
+          </div>
+          <div className="rounded-lg border p-3">
+            <div className="mb-2 text-sm font-medium">300-level seminars</div>
+            <div className="rounded bg-slate-50 px-3 py-2 text-center">
+              <div className="text-[0.55rem] uppercase text-slate-500">AFR seminars</div>
+              <div className="text-base font-semibold text-slate-900">
+                {progress.level300Count}/{progress.level300Required}
+              </div>
+            </div>
+          </div>
+          <div className="rounded-lg border p-3">
+            <div className="mb-2 text-sm font-medium">Course count</div>
+            <div className="rounded bg-slate-50 px-3 py-2 text-center">
+              <div className="text-[0.55rem] uppercase text-slate-500">Units toward 9</div>
+              <div className="text-base font-semibold text-slate-900">
+                {progress.totalCourses}/{totalTarget}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-dashed px-3 py-2 text-xs text-slate-600">
+          Africana majors must attend the Africana Studies Colloquium (The Common Experience) every semester and work with their advisor to select or design a geographic/thematic concentration (Africa, Caribbean & Latin America, United States, or a custom plan).
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const renderAmstMajor = (majorReq, courses) => {
+  const struct = majorReq.amerStructure || {};
+  const progress = computeAmstProgress(courses, struct);
+
+  return (
+    <div className="mt-4 space-y-4">
+      <div className="rounded-2xl border bg-white p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="text-sm font-semibold text-slate-900">American Studies Major</div>
+          <select
+            value={selectedMajor}
+            onChange={(e) => setSelectedMajor(e.target.value)}
+            className="rounded border px-3 py-1 text-sm"
+          >
+            <option value="">Select a major</option>
+            {Object.keys(majorRequirements).map(major => (
+              <option key={major} value={major}>{major}</option>
+            ))}
+          </select>
+        </div>
+
+        {renderMajorIntro(majorReq)}
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-lg border p-3">
+            <div className="mb-2 text-sm font-medium">Introductory requirement</div>
+            <div className="text-xs text-slate-500 mb-1">{(struct.introOptions || []).join(" / ")}</div>
+            <div className={cx(
+              "rounded border px-3 py-2 text-center text-sm font-semibold",
+              progress.introCompleted ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600"
+            )}>
+              {progress.introCompleted ? "Completed" : "Pending"}
+            </div>
+          </div>
+          <div className="rounded-lg border p-3">
+            <div className="mb-2 text-sm font-medium">AMST courses</div>
+            <div className="space-y-1 text-xs">
+              <div className="flex items-center justify-between rounded bg-slate-50 px-2 py-1">
+                <span>Core AMST courses</span>
+                <span className="font-semibold">{progress.coreCount}/{progress.coreRequired}</span>
+              </div>
+              <div className="flex items-center justify-between rounded bg-slate-50 px-2 py-1">
+                <span>300-level AMST</span>
+                <span className="font-semibold">{progress.level300Count}/{progress.level300Required}</span>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-lg border p-3">
+            <div className="mb-2 text-sm font-medium">Electives & totals</div>
+            <div className="space-y-1 text-xs">
+              <div className="flex items-center justify-between rounded bg-slate-50 px-2 py-1">
+                <span>Electives</span>
+                <span className="font-semibold">{progress.electivesCount}/{progress.electivesRequired}</span>
+              </div>
+              <div className="flex items-center justify-between rounded bg-slate-50 px-2 py-1">
+                <span>Total courses</span>
+                <span className="font-semibold">{progress.totalCourses}/{majorReq.unitTarget || 9}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-dashed px-3 py-2 text-xs text-slate-600">
+          Work with your advisor to build a concentration of at least three related courses (for example, race/class/gender, comparative ethnic studies, Asian American Studies, Latinx Studies, or another coherent theme).
+        </div>
+      </div>
+    </div>
+  );
+};
+
   const renderMajor = () => {
     const majorReq = selectedMajor ? majorRequirements[selectedMajor] : null;
     if (!majorReq) {
@@ -2644,7 +2903,7 @@ const renderAnthroMajor = (majorReq, courses) => {
               className="rounded border px-3 py-1 text-sm"
             >
               <option value="">Select a major</option>
-              {Object.keys(majorRequirements).map(major => (
+              {majorOptions.map(major => (
                 <option key={major} value={major}>{major}</option>
               ))}
             </select>
@@ -2667,7 +2926,7 @@ const renderAnthroMajor = (majorReq, courses) => {
     if (selectedMajor === "Biological Sciences" && majorReq.bioStructure) {
       return renderBioMajor(majorReq, relevantCourses);
     }
-    if (selectedMajor === "Individual / Custom Major") {
+    if (selectedMajor === "Custom Major") {
       return renderCustomMajor();
     }
     if (selectedMajor === "Mathematics" && majorReq.mathStructure) {
@@ -2678,6 +2937,12 @@ const renderAnthroMajor = (majorReq, courses) => {
     }
     if ((selectedMajor === "English" || selectedMajor === "English and Creative Writing") && majorReq.englishStructure) {
       return renderEnglishMajor(majorReq, relevantCourses);
+    }
+    if (selectedMajor === "Africana Studies" && majorReq.afrStructure) {
+      return renderAfrMajor(majorReq, relevantCourses);
+    }
+    if (selectedMajor === "American Studies" && majorReq.amerStructure) {
+      return renderAmstMajor(majorReq, relevantCourses);
     }
     if (selectedMajor === "Anthropology" && majorReq.anthroStructure) {
       return renderAnthroMajor(majorReq, relevantCourses);
@@ -2711,7 +2976,7 @@ const renderAnthroMajor = (majorReq, courses) => {
             className="rounded border px-3 py-1 text-sm"
           >
             <option value="">Select a major</option>
-            {Object.keys(majorRequirements).map(major => (
+            {majorOptions.map(major => (
               <option key={major} value={major}>{major}</option>
             ))}
           </select>
@@ -2720,10 +2985,11 @@ const renderAnthroMajor = (majorReq, courses) => {
           {renderMajorIntro(majorReq)}
 
           <div className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-lg border p-3">
-              <div className="mb-2 text-sm font-medium">Required Courses</div>
-              <div className="space-y-1 text-xs">
-                {majorReq.requiredCourses.map(course => (
+            {majorReq.requiredCourses && majorReq.requiredCourses.length > 0 && (
+              <div className="rounded-lg border p-3">
+                <div className="mb-2 text-sm font-medium">Required Courses</div>
+                <div className="space-y-1 text-xs">
+                  {majorReq.requiredCourses.map(course => (
                   <div key={course} className={cx(
                     "flex items-center justify-between p-2 rounded",
                     completedRequired.includes(course) 
@@ -2734,11 +3000,12 @@ const renderAnthroMajor = (majorReq, courses) => {
                     {completedRequired.includes(course) && <span>✓</span>}
                   </div>
                 ))}
+                </div>
+                <div className="mt-2 text-xs text-slate-500">
+                  {completedRequired.length}/{majorReq.requiredCourses.length} completed
+                </div>
               </div>
-              <div className="mt-2 text-xs text-slate-500">
-                {completedRequired.length}/{majorReq.requiredCourses.length} completed
-              </div>
-            </div>
+            )}
 
             <div className="rounded-lg border p-3">
               <div className="mb-2 text-sm font-medium">Major Electives</div>

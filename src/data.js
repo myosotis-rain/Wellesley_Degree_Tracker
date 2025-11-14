@@ -328,7 +328,27 @@ export const majorRequirements = {
     description:
       "Interdisciplinary major combining studio arts, computer science, and media culture. Requires 3 intro courses, 6 core courses (3 studio + 3 CS), 1 capstone, and portfolio.",
   },
-  "Individual / Custom Major": {
+  "Africana Studies": {
+    unitTarget: 9,
+    description:
+      "Nine-course Africana Studies major anchored by AFR 105 (or AFR 210 for late declarers), with at least two 300-level AFR seminars, attendance at the Africana Colloquium, and a chosen geographic or thematic concentration across the Africana world.",
+    afrStructure: {
+      introOptions: ["AFR 105", "AFR 210"],
+      level300Required: 2,
+    },
+  },
+  "American Studies": {
+    unitTarget: 9,
+    description:
+      "Interdisciplinary major examining the histories and cultures of the United States through American Studies coursework, electives drawn from affiliated departments, and an advisor-approved thematic concentration.",
+    amerStructure: {
+      introOptions: ["AMST 101", "AMST 121"],
+      coreCoursesRequired: 5,
+      level300Required: 2,
+      electiveCoursesRequired: 3,
+    },
+  },
+  "Custom Major": {
     description:
       "Design an interdepartmental plan that is not covered by Wellesley’s existing majors. An individual major should build cumulative expertise around a clearly described theme, blend theoretical and methodological work, and include at least eight units above the introductory level (minimum four in a single department).",
     prerequisites:
