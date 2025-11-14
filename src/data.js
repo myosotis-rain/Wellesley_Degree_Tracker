@@ -165,15 +165,72 @@ export const majorRequirements = {
     },
   },
   Mathematics: {
-    requiredCourses: ["MATH 115", "MATH 116", "MATH 205", "MATH 206"],
-    electiveCourses: 6,
-    description: "Complete calculus sequence and 6 advanced electives",
+    unitTarget: 10,
+    requiredCourses: ["MATH 115", "MATH 116", "MATH 205", "MATH 206", "MATH 302", "MATH 305"],
+    electiveCourses: 2,
+    description:
+      "Mathematics majors build computational fluency, extend concepts to new contexts, represent real-world patterns with mathematical structures, communicate precise arguments, and appreciate math as an evolving, creative discipline. The major includes calculus (MATH 115 plus MATH 116 or MATH 120), the 200-level linear algebra/advanced calculus pair (MATH 205 and MATH 206), the 300-level algebra/analysis duo (MATH 302 and MATH 305), and at least two additional 300-level MATH units (excluding independent study). Across the plan you must accumulate eight MATH/STAT courses at the 200 level or above and deliver the department’s junior/senior presentation.",
+    prerequisites:
+      "Complete MATH 115 and either MATH 116 or MATH 120 (or equivalent placement) before moving into the 200-level core. Finish prerequisites for MATH 302 and MATH 305 before junior year so the upper-level sequence stays on track.",
+    mathStructure: {
+      calculusSequence: ["MATH 115", "MATH 116", "MATH 120"],
+      coreCourses: ["MATH 205", "MATH 206"],
+      seminarCourses: ["MATH 302", "MATH 305"],
+      additional300Required: 2,
+      advancedTotalRequired: 8,
+      allowedDepartments: ["Mathematics", "Statistics"],
+      excludedCourses: ["MATH 350", "MATH 360", "MATH 370"],
+      presentationNote:
+        "Give one classroom or seminar talk during junior or senior year (e.g., student seminar, eligible course, or instructor-approved presentation). Track completion with your advisor.",
+    },
   },
   Economics: {
-    requiredCourses: ["ECON 101", "ECON 102", "ECON 103"],
-    electiveCourses: 5,
-    mathRequirements: ["QR 140", "ECON 103"],
-    description: "Complete core sequence and 5 electives with quantitative focus",
+    requiredCourses: ["ECON 101", "ECON 102", "ECON 103", "ECON 201", "ECON 202", "ECON 203"],
+    electiveCourses: 3,
+    mathRequirements: ["MATH 115"],
+    description:
+      "Economics majors learn to reason about scarcity, trade-offs, efficiency versus equity, global interdependence, macro stabilization, and long-run growth so they can craft and critique evidence-based policy arguments in writing and speech. The major requires nine ECON units that cover introductory and intermediate microeconomics (ECON 101/101P and ECON 201), introductory and intermediate macroeconomics (ECON 102/102P and ECON 202), the statistics/econometrics sequence (ECON 103 and ECON 203), at least two 300-level ECON courses taken at Wellesley (ordinarily not ECON 350/360/370), and electives that can include QR 260/STAT 260 or QR 309/STAT 309.",
+    prerequisites:
+      "Complete one semester of calculus at the level of MATH 115 or above before taking ECON 201, ECON 202, or ECON 203. If you replace ECON 103 with STAT 160, STAT 218, PSYC 105, or PSYC 205, add another ECON elective so the major still includes nine ECON units.",
+    econStructure: {
+      microIntro: ["ECON 101", "ECON 101P"],
+      microIntermediate: ["ECON 201"],
+      macroIntro: ["ECON 102", "ECON 102P"],
+      macroIntermediate: ["ECON 202"],
+      statsSequence: ["ECON 103", "ECON 203"],
+      mathPrereq: "MATH 115",
+      totalCoursesRequired: 9,
+      level300Required: 2,
+      excluded300: ["ECON 350", "ECON 360", "ECON 370"],
+      altStatsCredit: ["STAT 160", "STAT 218", "PSYC 105", "PSYC 205"],
+      electiveSubstitutions: ["QR 260", "STAT 260", "QR 309", "STAT 309"],
+    },
+  },
+  English: {
+    description: "Ten courses emphasizing literary study, with breadth in historical periods, two 300-level seminars, and postcolonial or ethnic literature.",
+    englishStructure: {
+      totalRequired: 10,
+      deptMinimum: 8,
+      upperLevelRequired: 7,
+      level300Required: 2,
+      postcolonialRequired: 1,
+      pre1900Required: 3,
+      pre1800Required: 2,
+      creativeWritingRequired: 0,
+    },
+  },
+  "English and Creative Writing": {
+    description: "Twelve courses blending literary study with four creative writing experiences, plus the same historical and advanced seminar expectations as the English major.",
+    englishStructure: {
+      totalRequired: 12,
+      deptMinimum: 8,
+      upperLevelRequired: 9,
+      level300Required: 2,
+      postcolonialRequired: 1,
+      pre1900Required: 3,
+      pre1800Required: 2,
+      creativeWritingRequired: 4,
+    },
   },
   "Biological Sciences": {
     description: "Nine BISC courses with intro/core distributions, two 300-level courses, one elective, plus two CHEM courses.",
@@ -206,6 +263,7 @@ export const majorRequirements = {
     },
   },
   "Media Arts and Sciences": {
+    unitTarget: 12,
     introductoryCourses: {
       visualAnalysis: ["ARTH 100", "WRIT 107", "CAMS 100"],
       studioFoundation: ["Any 100-level ARTS course"],
@@ -269,5 +327,11 @@ export const majorRequirements = {
     portfolioRequired: true,
     description:
       "Interdisciplinary major combining studio arts, computer science, and media culture. Requires 3 intro courses, 6 core courses (3 studio + 3 CS), 1 capstone, and portfolio.",
+  },
+  "Individual / Custom Major": {
+    description:
+      "Design an interdepartmental plan that is not covered by Wellesley’s existing majors. An individual major should build cumulative expertise around a clearly described theme, blend theoretical and methodological work, and include at least eight units above the introductory level (minimum four in a single department).",
+    prerequisites:
+      "Draft the plan with two faculty advisors from different departments and submit it to the Committee on Curriculum and Academic Policy (CCAP) for approval—ideally by sophomore spring. Use the Major Declaration form on MyWellesley once the plan is approved, and route later changes through your advisors and CCAP.",
   },
 };

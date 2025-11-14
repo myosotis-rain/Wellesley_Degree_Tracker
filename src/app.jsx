@@ -37,6 +37,9 @@ const DEFAULT_PROGRAM_SELECTIONS = [
   { id: "programB", label: "Program 2", type: "None", value: "", experienceComplete: false },
 ];
 
+const MAX_CUSTOM_MAJOR_REQUIREMENTS = 15;
+const DEFAULT_CUSTOM_MAJOR_COUNT = 9;
+
 const ensureProgramSelections = (saved) => {
   if (!Array.isArray(saved)) return DEFAULT_PROGRAM_SELECTIONS;
   return DEFAULT_PROGRAM_SELECTIONS.map(template => {
@@ -77,10 +80,17 @@ const summarizeProgramProgress = (programName, courses, programMeta = {}) => {
       anthroProgress: computeAnthroProgress(courses, config.anthroStructure, programMeta.experienceComplete),
     };
   }
+  if (config.englishStructure && (programName === "English" || programName === "English and Creative Writing")) {
+    return {
+      config,
+      isEnglish: true,
+      englishProgress: computeEnglishProgress(courses, config.englishStructure),
+    };
+  }
 
   const requiredCourses = config.requiredCourses || [];
   const requiredCompleted = requiredCourses.filter(req =>
-    courses.some(course => course.code === req)
+    courses.some(course => codesMatch(course.code, req))
   );
 
   const dept = programDepartment(programName);
@@ -102,7 +112,7 @@ const summarizeProgramProgress = (programName, courses, programMeta = {}) => {
 
   const mathRequirements = config.mathRequirements || [];
   const mathCompleted = mathRequirements.filter(req =>
-    courses.some(course => course.code === req)
+    courses.some(course => codesMatch(course.code, req))
   );
 
   return {
@@ -121,44 +131,76 @@ const sanitizeReqKey = (key = "") => key.toLowerCase().replace(/[^a-z0-9]+/g, "-
 
 const programRequirementOptionSets = {
   "Media Arts and Sciences": [
-    { id: "mas-intro", label: "Intro Courses (3)" },
-    { id: "mas-studio", label: "Studio Core (3)" },
-    { id: "mas-cs", label: "CS Core (3)" },
-    { id: "mas-electives", label: "MAS Electives (3)" },
-    { id: "mas-capstone", label: "Capstone Course" },
-    { id: "mas-portfolio", label: "Portfolio / Senior Deliverable" },
+    { id: "mas-intro", label: "Intro Courses", required: 3 },
+    { id: "mas-studio", label: "Studio Core", required: 3 },
+    { id: "mas-cs", label: "CS Core", required: 3 },
+    { id: "mas-electives", label: "MAS Electives", required: 3 },
+    { id: "mas-capstone", label: "Capstone Course", required: 1 },
+    { id: "mas-portfolio", label: "Portfolio / Deliverable", required: 1 },
   ],
   "Computer Science": [
-    { id: "cs-intro", label: "Intro (CS 111/112)" },
-    { id: "cs-core-230", label: "CS 230 Series" },
-    { id: "cs-core-231", label: "CS 231" },
-    { id: "cs-core-235", label: "CS 235" },
-    { id: "cs-core-240", label: "CS 240" },
-    { id: "cs-300", label: "300-level CS" },
-    { id: "cs-elective", label: "CS Elective (200+)" },
-    { id: "cs-math", label: "Supporting Math (MATH 225)" },
+    { id: "cs-intro", label: "Intro (CS 111/112)", required: 1 },
+    { id: "cs-core-230", label: "CS 230 Series", required: 1 },
+    { id: "cs-core-231", label: "CS 231", required: 1 },
+    { id: "cs-core-235", label: "CS 235", required: 1 },
+    { id: "cs-core-240", label: "CS 240", required: 1 },
+    { id: "cs-300", label: "300-level CS", required: 2 },
+    { id: "cs-elective", label: "CS Elective (200+)", required: 2 },
+    { id: "cs-math", label: "Supporting Math (MATH 225)", required: 1 },
   ],
   "Biological Sciences": [
-    { id: "bio-intro-cell", label: "Intro: Cell & Molecular" },
-    { id: "bio-intro-organismal", label: "Intro: Organismal" },
-    { id: "bio-group-cell", label: "200-level: Cell Biology" },
-    { id: "bio-group-systems", label: "200-level: Systems Biology" },
-    { id: "bio-group-community", label: "200-level: Community Biology" },
-    { id: "bio-extra-200", label: "Additional 200-level BISC" },
-    { id: "bio-300", label: "300-level BISC" },
-    { id: "bio-elective", label: "BISC Elective / EXTD 225" },
-    { id: "bio-chem-intro", label: "Intro Chemistry" },
-    { id: "bio-chem-advanced", label: "Advanced Chemistry" },
+    { id: "bio-intro-cell", label: "Intro: Cell & Molecular", required: 1 },
+    { id: "bio-intro-organismal", label: "Intro: Organismal", required: 1 },
+    { id: "bio-group-cell", label: "200-level: Cell Biology", required: 1 },
+    { id: "bio-group-systems", label: "200-level: Systems Biology", required: 1 },
+    { id: "bio-group-community", label: "200-level: Community Biology", required: 1 },
+    { id: "bio-extra-200", label: "Additional 200-level BISC", required: 1 },
+    { id: "bio-300", label: "300-level BISC", required: 2 },
+    { id: "bio-elective", label: "BISC Elective / EXTD 225", required: 1 },
+    { id: "bio-chem-intro", label: "Intro Chemistry", required: 1 },
+    { id: "bio-chem-advanced", label: "Advanced Chemistry", required: 1 },
   ],
   Anthropology: [
-    { id: "anth-101", label: "ANTH 101" },
-    { id: "anth-2nd-intro", label: "Second Intro (ANTH 102/103)" },
-    { id: "anth-205", label: "ANTH 205" },
-    { id: "anth-301", label: "ANTH 301" },
-    { id: "anth-extra-300", label: "Additional 300-level" },
-    { id: "anth-elective", label: "Anthropology Elective" },
-    { id: "anth-experience", label: "Field / Experience" },
+    { id: "anth-101", label: "ANTH 101", required: 1 },
+    { id: "anth-2nd-intro", label: "Second Intro (ANTH 102/103)", required: 1 },
+    { id: "anth-205", label: "ANTH 205", required: 1 },
+    { id: "anth-301", label: "ANTH 301", required: 1 },
+    { id: "anth-extra-300", label: "Additional 300-level", required: 1 },
+    { id: "anth-elective", label: "Anthropology Elective", required: 4 },
+    { id: "anth-experience", label: "Field / Experience", required: 1 },
   ],
+  English: [
+    { id: "english-postcolonial", label: "Postcolonial / Ethnic Writing", required: 1 },
+    { id: "english-pre1900", label: "Pre-1900 Literature", required: 3 },
+    { id: "english-pre1800", label: "Pre-1800 Literature", required: 2 },
+  ],
+  "English and Creative Writing": [
+    { id: "english-postcolonial", label: "Postcolonial / Ethnic Writing", required: 1 },
+    { id: "english-pre1900", label: "Pre-1900 Literature", required: 3 },
+    { id: "english-pre1800", label: "Pre-1800 Literature", required: 2 },
+    { id: "english-creative-writing", label: "Creative Writing Course", required: 4 },
+  ],
+  Mathematics: [
+    { id: "math-115", label: "MATH 115", required: 1 },
+    { id: "math-116", label: "MATH 116 or 120", required: 1 },
+    { id: "math-205", label: "MATH 205", required: 1 },
+    { id: "math-206", label: "MATH 206", required: 1 },
+    { id: "math-302", label: "MATH 302", required: 1 },
+    { id: "math-305", label: "MATH 305", required: 1 },
+    { id: "math-extra-300", label: "Additional 300-level MATH", required: 2 },
+    { id: "math-adv-elective", label: "Additional 200+ MATH/STAT units", required: 2 },
+  ],
+  Economics: [
+    { id: "econ-101", label: "ECON 101 / 101P", required: 1 },
+    { id: "econ-102", label: "ECON 102 / 102P", required: 1 },
+    { id: "econ-201", label: "ECON 201", required: 1 },
+    { id: "econ-202", label: "ECON 202", required: 1 },
+    { id: "econ-103", label: "ECON 103 / approved stats", required: 1 },
+    { id: "econ-203", label: "ECON 203", required: 1 },
+    { id: "econ-300", label: "300-level ECON", required: 2 },
+    { id: "econ-elective", label: "Economics / QR260 / STAT260 / QR309 / STAT309", required: 1 },
+  ],
+  "Individual / Custom Major": [],
 };
 
 const getRequirementOptionsForMajor = (majorName) => {
@@ -167,13 +209,13 @@ const getRequirementOptionsForMajor = (majorName) => {
   if (!config) return [];
   const options = [];
   (config.requiredCourses || []).forEach(course => {
-    options.push({ id: `required-${sanitizeReqKey(course)}`, label: `Required: ${course}` });
+    options.push({ id: `required-${sanitizeReqKey(course)}`, label: `Required: ${course}`, required: 1 });
   });
   if (config.electiveCourses) {
-    options.push({ id: "generic-elective", label: "Major Elective" });
+    options.push({ id: "generic-elective", label: "Major Elective", required: config.electiveCourses });
   }
   (config.mathRequirements || []).forEach(course => {
-    options.push({ id: `support-${sanitizeReqKey(course)}`, label: `Supporting: ${course}` });
+    options.push({ id: `support-${sanitizeReqKey(course)}`, label: `Supporting: ${course}`, required: 1 });
   });
   return options;
 };
@@ -188,13 +230,13 @@ const computeMASProgress = (courses, majorReq) => {
   const csIntro = courses.filter(course => course.code.match(/^CS\s+1\d{2}/));
 
   const studioCore = courses.filter(course =>
-    majorReq.coreCourses.studioCore.some(req => course.code === req)
+    majorReq.coreCourses.studioCore.some(req => codesMatch(course.code, req))
   );
   const csCore = courses.filter(course =>
-    majorReq.coreCourses.csCore.some(req => course.code === req)
+    majorReq.coreCourses.csCore.some(req => codesMatch(course.code, req))
   );
   const capstone = courses.filter(course =>
-    majorReq.capstoneCourses.some(req => course.code === req)
+    majorReq.capstoneCourses.some(req => codesMatch(course.code, req))
   );
 
   const usedCodes = new Set([
@@ -236,6 +278,7 @@ const computeMASProgress = (courses, majorReq) => {
 
 const computeCSProgress = (courses, csStructure) => {
   const normalizeCode = (course) => (course.code || "").trim().toUpperCase();
+  const matchesOption = (code, options = []) => options.some(opt => codesMatch(code, opt));
   const csCourses = courses.filter(course => normalizeCode(course).startsWith("CS"));
   const excluded = new Set((csStructure.excludedCourses || []).map(code => code.toUpperCase()));
 
@@ -244,7 +287,7 @@ const computeCSProgress = (courses, csStructure) => {
 
   const introCompleted = csCourses.some(course => {
     const code = normalizeCode(course);
-    if (csStructure.introOptions?.includes(code)) {
+    if (matchesOption(code, csStructure.introOptions)) {
       markUsed(course);
       return true;
     }
@@ -254,7 +297,7 @@ const computeCSProgress = (courses, csStructure) => {
   const coreGroups = (csStructure.coreGroups || []).map(group => {
     const completedCourse = csCourses.find(course => {
       const code = normalizeCode(course);
-      return group.options.includes(code) && !used.has(code);
+      return matchesOption(code, group.options) && !used.has(code);
     });
     if (completedCourse) markUsed(completedCourse);
     return {
@@ -368,6 +411,116 @@ const computeBioProgress = (courses, bioStructure) => {
   };
 };
 
+const computeMathProgress = (courses, mathStructure) => {
+  const normalizeCode = (value = "") => value.trim().toUpperCase();
+  const compactCode = (value = "") => normalizeCode(value).replace(/\s+/g, "");
+  const allowedDepartments = new Set(mathStructure.allowedDepartments || []);
+  const excludedCourses = new Set((mathStructure.excludedCourses || []).map(compactCode));
+  const seminarSet = new Set((mathStructure.seminarCourses || []).map(compactCode));
+
+  const filtered = courses
+    .map(course => ({
+      ...course,
+      norm: normalizeCode(course.code || ""),
+      compact: compactCode(course.code || ""),
+      dept: detectDepartmentFromCode(course.code),
+    }))
+    .filter(course => course.norm && allowedDepartments.has(course.dept));
+
+  const hasCourse = (code) => filtered.some(course => codesMatch(course.code, code));
+  const hasAny = (codes = []) => codes.some(code => hasCourse(code));
+
+  const calculus115 = hasCourse("MATH 115");
+  const calculusSecond = hasAny((mathStructure.calculusSequence || []).filter(code => code !== "MATH 115"));
+
+  const coreCompleted = (mathStructure.coreCourses || []).map(code => ({
+    code,
+    completed: hasCourse(code),
+  }));
+
+  const seminarCompleted = (mathStructure.seminarCourses || []).map(code => ({
+    code,
+    completed: hasCourse(code),
+  }));
+
+  const advancedCourses = filtered.filter(course => {
+    if (excludedCourses.has(course.compact)) return false;
+    return (course.level || 0) >= 200;
+  });
+  const advancedTotal = advancedCourses.length;
+
+  const additional300Courses = advancedCourses.filter(course => {
+    if ((course.level || 0) < 300) return false;
+    if (course.dept !== "Mathematics") return false;
+    if (seminarSet.has(course.compact) || excludedCourses.has(course.compact)) return false;
+    return true;
+  });
+
+  return {
+    calculus115,
+    calculusSecond,
+    coreCompleted,
+    seminarCompleted,
+    advancedTotal,
+    advancedRequired: mathStructure.advancedTotalRequired || 8,
+    additional300Count: additional300Courses.length,
+    additional300Required: mathStructure.additional300Required || 0,
+    presentationNote: mathStructure.presentationNote,
+  };
+};
+
+const computeEconProgress = (courses, econStructure) => {
+  const normalizeCode = (value = "") => value.trim().toUpperCase();
+  const econCourses = courses
+    .map(course => ({
+      ...course,
+      norm: normalizeCode(course.code || ""),
+      dept: detectDepartmentFromCode(course.code),
+    }))
+    .filter(course => course.norm && course.dept === "Economics");
+
+  const hasCourse = (codes = []) => codes.some(code => econCourses.some(course => course.norm === code));
+
+  const microIntro = hasCourse(econStructure.microIntro || []);
+  const microIntermediate = hasCourse(econStructure.microIntermediate || []);
+  const macroIntro = hasCourse(econStructure.macroIntro || []);
+  const macroIntermediate = hasCourse(econStructure.macroIntermediate || []);
+  const statsIntroCourse = econCourses.some(course => course.norm === "ECON 103");
+  const statsIntermediate = econCourses.some(course => course.norm === "ECON 203");
+
+  const altStatsSet = new Set((econStructure.altStatsCredit || []).map(code => code.toUpperCase()));
+  const statsIntroViaAlt = !statsIntroCourse && courses.some(course => altStatsSet.has(normalizeCode(course.code || "")));
+  const statsIntroSatisfied = statsIntroCourse || statsIntroViaAlt;
+
+  const excluded300 = new Set((econStructure.excluded300 || []).map(code => code.toUpperCase()));
+  const level300Courses = econCourses.filter(course => {
+    if ((course.level || 0) < 300) return false;
+    return !excluded300.has(course.norm);
+  });
+
+  const substitutionSet = new Set((econStructure.electiveSubstitutions || []).map(code => code.toUpperCase()));
+  const substitutionCourses = courses.filter(course => substitutionSet.has(normalizeCode(course.code || "")));
+
+  const totalCount = econCourses.length + substitutionCourses.length;
+  const totalRequired = econStructure.totalCoursesRequired || 9;
+
+  return {
+    microIntro,
+    microIntermediate,
+    macroIntro,
+    macroIntermediate,
+    statsIntroCourse,
+    statsIntroSatisfied,
+    statsIntroViaAlt,
+    statsIntermediate,
+    level300Count: level300Courses.length,
+    level300Required: econStructure.level300Required || 0,
+    totalCount,
+    totalRequired,
+    substitutionCourses: substitutionCourses.map(course => course.code),
+  };
+};
+
 const computeAnthroProgress = (courses, structure, experienceComplete = false) => {
   const normalize = (course) => (course.code || "").trim().toUpperCase();
   const isAnth = (course) => normalize(course).startsWith("ANTH") || normalize(course).startsWith("CLCV");
@@ -415,28 +568,68 @@ const computeAnthroProgress = (courses, structure, experienceComplete = false) =
   };
 };
 
+const computeEnglishProgress = (courses, structure) => {
+  const normalize = (course) => (course.code || "").trim().toUpperCase();
+  const getLevel = (course) => Number(course.level || 0);
+  const isEnglishCourse = (course) => {
+    const dept = detectDepartmentFromCode(course.code);
+    if (dept === "English") return true;
+    if (Array.isArray(course.depts)) return course.depts.includes("English");
+    return normalize(course).startsWith("ENG");
+  };
+
+  const totalCourses = courses.length;
+  const englishDeptCourses = courses.filter(isEnglishCourse).length;
+  const upperLevelCourses = courses.filter(course => (course.level || 0) > 100).length;
+  const level300Courses = courses.filter(course => {
+    const level = getLevel(course);
+    const code = normalize(course);
+    if (code.includes("350")) return false;
+    return level >= 300;
+  }).length;
+
+  return {
+    totalCourses,
+    englishDeptCourses,
+    upperLevelCourses,
+    level300Courses,
+  };
+};
+
 // ---- Main App ----
 export default function App() {
   const savedDataRef = useRef(loadFromLocalStorage());
   const savedData = savedDataRef.current || null;
   const initialStartYear = savedData?.startYear || 2024;
   const initialProgramSelections = ensureProgramSelections(savedData?.programSelections);
-  const primaryProgramValue = initialProgramSelections.find(p => p.id === "programA" && p.type !== "None" && p.value)?.value;
-
   const [terms, setTerms] = useState(() => savedData?.terms || getDefaultTerms(initialStartYear));
   const [activeTermId, setActiveTermId] = useState(null);
   const [activeTab, setActiveTab] = useState(savedData?.activeTab || "plan");
   const [startYear, setStartYear] = useState(initialStartYear);
   const [programSelections, setProgramSelections] = useState(initialProgramSelections);
-  const [selectedMajor, setSelectedMajor] = useState(
-    savedData?.selectedMajor || primaryProgramValue || "Computer Science"
-  );
+  const [selectedMajor, setSelectedMajor] = useState("");
   const [yearLabels, setYearLabels] = useState(
     savedData?.yearLabels || Object.fromEntries(defaultYears.map((y) => [y.id, y.label]))
   );
   const [languageWaived, setLanguageWaived] = useState(savedData?.languageWaived || false);
+  const [customMajorRequirements, setCustomMajorRequirements] = useState(
+    () => savedData?.customMajorRequirements || Array(DEFAULT_CUSTOM_MAJOR_COUNT).fill("")
+  );
 
   const termById = (id) => terms.find(t => t.id === id) || null;
+
+  const updateCustomRequirement = (index, value) => {
+    setCustomMajorRequirements(prev =>
+      prev.map((entry, i) => (i === index ? value : entry))
+    );
+  };
+
+  const addCustomRequirementRow = () => {
+    setCustomMajorRequirements(prev => {
+      if (prev.length >= MAX_CUSTOM_MAJOR_REQUIREMENTS) return prev;
+      return [...prev, ""];
+    });
+  };
 
   // Auto-save to localStorage whenever data changes
   useEffect(() => {
@@ -444,13 +637,13 @@ export default function App() {
       terms,
       activeTab,
       startYear,
-      selectedMajor,
       yearLabels,
       languageWaived,
       programSelections,
+      customMajorRequirements,
     };
     saveToLocalStorage(dataToSave);
-  }, [terms, activeTab, startYear, selectedMajor, yearLabels, languageWaived, programSelections]);
+  }, [terms, activeTab, startYear, yearLabels, languageWaived, programSelections, customMajorRequirements]);
 
   const updateSlot = (termId, slotIdx, updater) => {
     setTerms(prev =>
@@ -630,11 +823,130 @@ const countAssignedRequirement = (courses, programId, requirementId) => {
   return courses.filter(course => getAssignedRequirementId(course, programId) === requirementId).length;
 };
 
-  const getCoursesForProgram = (programId) => {
-    const flagged = allCourses.filter(course => course.programs?.[programId]);
-    if (flagged.length > 0) return flagged;
-    return allCourses;
+const computeRequirementProgress = (programId, requirementOptions, programCourses) => {
+  if (!requirementOptions.length) return { pct: 0, subtitle: "Awaiting assignments" };
+  const total = requirementOptions.length;
+  let sum = 0;
+  requirementOptions.forEach(opt => {
+    const required = opt.required || 1;
+    const assigned = countAssignedRequirement(programCourses, programId, opt.id);
+    sum += Math.min(assigned / required, 1);
+  });
+  const pct = clamp01(sum / total);
+  return { pct, subtitle: `${Math.round(pct * 100)}% of ${total} reqs` };
+};
+
+const getCoursesForProgram = (programId) => {
+  const flagged = allCourses.filter(course => course.programs?.[programId]);
+  if (flagged.length > 0) return flagged;
+  return allCourses;
+};
+
+const normalizeCourseCode = (code = "") => code.trim().toUpperCase();
+const compactCourseCode = (code = "") => normalizeCourseCode(code).replace(/\s+/g, "");
+const codesMatch = (codeA = "", codeB = "") => {
+  if (!codeA || !codeB) return false;
+  const normA = normalizeCourseCode(codeA);
+  const normB = normalizeCourseCode(codeB);
+  if (normA === normB) return true;
+  return compactCourseCode(codeA) === compactCourseCode(codeB);
+};
+
+const getMajorRelevantCourses = (majorName, allCourses, programSelections) => {
+  if (!majorName) return [];
+  const majorReq = majorRequirements[majorName];
+  if (!majorReq) return [];
+  const matchedPrograms = programSelections.filter(program => program.value === majorName);
+  const isCourseFlagged = (course) =>
+    matchedPrograms.some(program => course.programs?.[program.id]);
+  const flagged = matchedPrograms.length ? allCourses.filter(isCourseFlagged) : [];
+  const combined = [...flagged];
+  const addCourse = (course) => {
+    if (!course) return;
+    if (!combined.includes(course)) combined.push(course);
   };
+  (majorReq.requiredCourses || []).forEach(reqCode => {
+    const match = allCourses.find(course => codesMatch(course.code, reqCode));
+    if (match) addCourse(match);
+  });
+
+  if (majorReq.csStructure) {
+    const addMatches = (options = []) => {
+      if (!options.length) return;
+      allCourses.forEach(course => {
+        if (options.some(opt => codesMatch(course.code, opt))) addCourse(course);
+      });
+    };
+    addMatches(majorReq.csStructure.introOptions);
+    (majorReq.csStructure.coreGroups || []).forEach(group => addMatches(group.options));
+  }
+
+  if (combined.length === 0) {
+    return allCourses;
+  }
+  return combined;
+};
+
+const getMajorRequirementTarget = (majorName) => {
+  const config = majorRequirements[majorName];
+  if (!config) return 0;
+  if (config.unitTarget) return config.unitTarget;
+  if (config.englishStructure?.totalRequired) return config.englishStructure.totalRequired;
+  if (config.mathStructure?.advancedTotalRequired) return config.mathStructure.advancedTotalRequired;
+  if (config.econStructure?.totalCoursesRequired) return config.econStructure.totalCoursesRequired;
+  if (config.bioStructure) return 9;
+  if (config.csStructure) {
+    const coreCount = (config.csStructure.coreGroups?.length || 0) + (config.csStructure.introOptions ? 1 : 0);
+    return coreCount + (config.csStructure.level300Required || 0) + (config.csStructure.electivesRequired || 0);
+  }
+  const required = config.requiredCourses?.length || 0;
+  const electives = config.electiveCourses || 0;
+  return required + electives;
+};
+
+const ProgramStatRow = ({
+  label,
+  value,
+  className = "",
+  labelClass = "text-[0.55rem] uppercase tracking-wide text-slate-500",
+  valueClass = "text-base font-semibold text-slate-900",
+}) => (
+  <div className={cx("flex h-full w-full flex-col items-center justify-between gap-1 text-center", className)}>
+    <span className={labelClass}>{label}</span>
+    <span className={valueClass}>{value}</span>
+  </div>
+);
+
+const getTotalUnitsStat = (majorName, courses = []) => {
+  if (!majorName) return null;
+  const target = getMajorRequirementTarget(majorName);
+  if (!target) return null;
+  const total = courses.reduce((sum, course) => {
+    const credits = Number(course.credits);
+    if (Number.isFinite(credits) && credits > 0) return sum + credits;
+    return sum + 1;
+  }, 0);
+  const formattedTotal = Number.isInteger(total) ? total : total.toFixed(1);
+  return {
+    label: "Total units",
+    value: `${formattedTotal}/${target}`,
+    earned: total,
+    target,
+  };
+};
+
+const TotalUnitsCard = ({ stat, className = "" }) => {
+  if (!stat || !stat.target) return null;
+  return (
+    <div className={cx("rounded-lg border border-indigo-100 bg-white px-3 py-2 text-center", className)}>
+      <div className="text-[0.55rem] uppercase tracking-wide text-slate-500">
+        {stat.label}
+      </div>
+      <div className="text-base font-semibold text-slate-900">{stat.value}</div>
+    </div>
+  );
+};
+
 
   // ---- Progress calculations ----
   const progress = useMemo(() => {
@@ -739,6 +1051,25 @@ const countAssignedRequirement = (courses, programId, requirementId) => {
     const term = termById(termId);
     // Allow removal of any term from the highest year, or any Summer/Winter term
     return term && (term.year === maxYear || term.season === 'Summer' || term.season === 'Winter');
+  };
+
+  const renderMajorIntro = (majorReq) => {
+    if (!majorReq) return null;
+    return (
+      <>
+        {majorReq.description && (
+          <div className="mb-4 text-xs text-slate-600">{majorReq.description}</div>
+        )}
+        {majorReq.prerequisites && (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[0.7rem] text-amber-900">
+            <div className="text-[0.6rem] font-semibold uppercase tracking-wide text-amber-800">
+              Prerequisites
+            </div>
+            <p className="mt-1">{majorReq.prerequisites}</p>
+          </div>
+        )}
+      </>
+    );
   };
 
   const renderPlan = () => (
@@ -853,6 +1184,64 @@ const countAssignedRequirement = (courses, programId, requirementId) => {
             </div>
           );
         })}
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-2xl border bg-white p-3 text-[0.75rem]">
+            <div className="mb-2 text-sm font-semibold text-slate-900">
+              Distribution Groups (3-3-3)
+            </div>
+            <MiniReqBar label="Group 1: Humanities & Arts" have={getReq("GROUP1_TOTAL").have} target={3} />
+            <div className="text-[0.6rem] text-slate-500 ml-2 mb-2">
+              (≥1 Language/Lit + ≥1 Arts, 3 total)
+            </div>
+            <MiniReqBar label="Group 2: Social Sciences" have={getReq("GROUP2_TOTAL").have} target={3} />
+            <div className="text-[0.6rem] text-slate-500 ml-2 mb-2">
+              (1 SBA + 2 from EC/REP/HST)
+            </div>
+            <MiniReqBar label="Group 3: Science & Math" have={getReq("GROUP3_TOTAL").have} target={3} />
+            <div className="text-[0.6rem] text-slate-500 ml-2">
+              (1 Science + 1 Math + 1 more, ≥1 lab)
+            </div>
+          </div>
+
+          <div className="rounded-2xl border bg-white p-3 text-[0.75rem]">
+            <div className="mb-2 text-sm font-semibold text-slate-900">
+              Other Requirements
+            </div>
+            <MiniReqBar label="First-Year Writing" have={getReq("WRIT").have} target={1} />
+            {(() => {
+              const langReq = getReq("LANG");
+              return (
+                <MiniReqBar
+                  label={`Foreign Language${languageWaived ? " (Waived)" : ""}`}
+                  have={langReq.have}
+                  target={langReq.targetCount}
+                  pct={langReq.pct}
+                />
+              );
+            })()}
+            <MiniReqBar label="Quantitative Reasoning" have={getReq("QR").have} target={1} />
+            <MiniReqBar label="300-level Courses" have={getReq("300").have} target={4} />
+            <div className="mb-2">
+              <div className="flex items-center justify-between text-[0.7rem]">
+                <span>
+                  Physical Education*
+                  <span className="ml-1 text-[0.6rem] text-slate-500">(*One PE class = 4 units)</span>
+                </span>
+                <span className="text-[0.65rem]">
+                  {getReq("PE").have}/{getReq("PE").targetCount}
+                </span>
+              </div>
+              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+                <div
+                  className="h-full rounded-full bg-indigo-500"
+                  style={{ width: `${getReq("PE").pct * 100}%` }}
+                />
+              </div>
+            </div>
+            <MiniReqBar label="Experiential Learning" have={getReq("EXP").have} target={2} />
+          </div>
+        </div>
         </div>
 
       <div className="space-y-3">
@@ -908,7 +1297,13 @@ const countAssignedRequirement = (courses, programId, requirementId) => {
           <div className="space-y-3">
             {programSelections.map(program => {
               const programCourses = program.value ? getCoursesForProgram(program.id) : [];
-              const summary = program.value ? summarizeProgramProgress(program.value, programCourses, program) : null;
+              const displayCourses = program.value ? getMajorRelevantCourses(program.value, allCourses, programSelections) : [];
+              const summary = program.value ? summarizeProgramProgress(program.value, displayCourses, program) : null;
+              const totalUnitsStat = program.value ? getTotalUnitsStat(program.value, displayCourses) : null;
+              const requirementOptions = programRequirementOptionsMap[program.id] || [];
+              const requirementProgress = program.value && requirementOptions.length
+                ? computeRequirementProgress(program.id, requirementOptions, programCourses)
+                : { pct: 0, subtitle: program.value ? "Mark requirements" : "No program" };
               return (
                 <div key={program.id} className="rounded-xl border px-3 py-3">
                   <div className="flex flex-col gap-2 text-[0.65rem] sm:flex-row sm:items-center">
@@ -947,6 +1342,10 @@ const countAssignedRequirement = (courses, programId, requirementId) => {
 
                   {program.type !== "None" && program.value && summary && summary.isSpecial && summary.masProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
+                      <div className="flex justify-center py-2">
+                        <RingStat pct={requirementProgress.pct} label="Major progress" subtitle={requirementProgress.subtitle} />
+                      </div>
+                      <TotalUnitsCard stat={totalUnitsStat} />
                       {(() => {
                         const assignedIntro = countAssignedRequirement(programCourses, program.id, "mas-intro");
                         const assignedStudio = countAssignedRequirement(programCourses, program.id, "mas-studio");
@@ -982,39 +1381,26 @@ const countAssignedRequirement = (courses, programId, requirementId) => {
                           </div>
                         );
                       })()}
-                      <div className="space-y-2">
-                        <div className="rounded-lg bg-indigo-50 px-3 py-2 text-indigo-900">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[0.6rem] uppercase">Capstone Ready</span>
-                            <span className="text-sm font-semibold">
-                              {countAssignedRequirement(programCourses, program.id, "mas-capstone") > 0 ||
-                              summary.masProgress.capstone.length > 0
-                                ? "✓ Completed"
-                                : "Not yet"}
-                            </span>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <div className="rounded-lg border border-indigo-100 bg-white px-3 py-2 text-center flex flex-col justify-between">
+                          <div className="text-[0.55rem] uppercase tracking-wide text-slate-500">Capstone Ready</div>
+                          <div className="text-sm font-semibold text-slate-900">
+                            {countAssignedRequirement(programCourses, program.id, "mas-capstone") > 0 ||
+                            summary.masProgress.capstone.length > 0
+                              ? "✓ Completed"
+                              : "Not yet"}
                           </div>
-                          <p className="mt-1 text-[0.6rem]">
-                            Media Arts and Sciences combines studio, CS, and media culture. Use the Major tab for the full checklist.
-                          </p>
                         </div>
-                        <div className="rounded-lg border border-indigo-100 bg-white px-3 py-2">
-                          <div className="flex items-center justify-between text-[0.6rem] text-slate-500">
-                            <span>Total units</span>
-                            <span className="text-sm font-semibold text-slate-900">
-                              {summary.masProgress.totals.totalUnits.toFixed(1)}/12
-                            </span>
+                        <div className="rounded-lg border border-indigo-100 bg-white px-3 py-2 text-center flex flex-col justify-between">
+                          <div className="text-[0.55rem] uppercase tracking-wide text-slate-500">Courses above 100</div>
+                          <div className="text-base font-semibold text-slate-900">
+                            {summary.masProgress.totals.upperLevelCourses}/8+
                           </div>
-                          <div className="mt-1 flex items-center justify-between text-[0.6rem] text-slate-500">
-                            <span>Courses above 100</span>
-                            <span className="text-sm font-semibold text-slate-900">
-                              {summary.masProgress.totals.upperLevelCourses}/8+
-                            </span>
-                          </div>
-                          <div className="mt-1 flex items-center justify-between text-[0.6rem] text-slate-500">
-                            <span>300-level courses</span>
-                            <span className="text-sm font-semibold text-slate-900">
-                              {summary.masProgress.totals.level300Count}/2+
-                            </span>
+                        </div>
+                        <div className="rounded-lg border border-indigo-100 bg-white px-3 py-2 text-center flex flex-col justify-between">
+                          <div className="text-[0.55rem] uppercase tracking-wide text-slate-500">300-level courses</div>
+                          <div className="text-base font-semibold text-slate-900">
+                            {summary.masProgress.totals.level300Count}/2+
                           </div>
                         </div>
                       </div>
@@ -1023,6 +1409,10 @@ const countAssignedRequirement = (courses, programId, requirementId) => {
 
                   {program.type !== "None" && program.value && summary && summary.isCS && summary.csProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
+                      <div className="flex justify-center py-2">
+                        <RingStat pct={requirementProgress.pct} label="Major progress" subtitle={requirementProgress.subtitle} />
+                      </div>
+                      <TotalUnitsCard stat={totalUnitsStat} />
                       {(() => {
                         const totalCore = summary.csProgress.coreGroups.length;
                         const completedCore = summary.csProgress.coreGroups.filter(group => group.completed).length;
@@ -1066,6 +1456,10 @@ const countAssignedRequirement = (courses, programId, requirementId) => {
 
                   {program.type !== "None" && program.value && summary && summary.isBio && summary.bioProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
+                      <div className="flex justify-center py-2">
+                        <RingStat pct={requirementProgress.pct} label="Major progress" subtitle={requirementProgress.subtitle} />
+                      </div>
+                      <TotalUnitsCard stat={totalUnitsStat} />
                       {(() => {
                         const introCellAssigned = countAssignedRequirement(programCourses, program.id, "bio-intro-cell");
                         const introOrgAssigned = countAssignedRequirement(programCourses, program.id, "bio-intro-organismal");
@@ -1095,19 +1489,19 @@ const countAssignedRequirement = (courses, programId, requirementId) => {
                         );
                       })()}
                       <div className="grid gap-2 sm:grid-cols-3">
-                        <div className="rounded border px-3 py-2 text-center">
+                        <div className="rounded border px-3 py-2 text-center h-full">
                           <div className="text-[0.55rem] uppercase text-slate-500">300-level BISC</div>
                           <div className="text-base font-semibold text-slate-900">
                             {countAssignedRequirement(programCourses, program.id, "bio-300") || summary.bioProgress.level300}/{summary.bioProgress.level300Required}
                           </div>
                         </div>
-                        <div className="rounded border px-3 py-2 text-center">
+                        <div className="rounded border px-3 py-2 text-center h-full">
                           <div className="text-[0.55rem] uppercase text-slate-500">BISC Elective</div>
                           <div className="text-base font-semibold text-slate-900">
                             {countAssignedRequirement(programCourses, program.id, "bio-elective") || summary.bioProgress.electiveCompleted}/{summary.bioProgress.electiveRequired}
                           </div>
                         </div>
-                        <div className="rounded border px-3 py-2 text-center">
+                        <div className="rounded border px-3 py-2 text-center h-full">
                           <div className="text-[0.55rem] uppercase text-slate-500">Chemistry Courses</div>
                           <div className="text-sm font-semibold text-slate-900">
                             {(countAssignedRequirement(programCourses, program.id, "bio-chem-intro") > 0 || summary.bioProgress.chemIntroCompleted ? "Intro ✓" : "Intro")} / {(countAssignedRequirement(programCourses, program.id, "bio-chem-advanced") > 0 || summary.bioProgress.chemAdvancedCompleted ? "Adv ✓" : "Adv")}
@@ -1117,8 +1511,67 @@ const countAssignedRequirement = (courses, programId, requirementId) => {
                     </div>
                   )}
 
+                  {program.type !== "None" && program.value && summary && summary.isEnglish && summary.englishProgress && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      <div className="flex justify-center py-2">
+                        <RingStat pct={requirementProgress.pct} label="Major progress" subtitle={requirementProgress.subtitle} />
+                      </div>
+                      <TotalUnitsCard stat={totalUnitsStat} />
+                      {(() => {
+                        const struct = summary.config?.englishStructure || {};
+                        const topTiles = [
+                          { label: "English dept courses", value: `${summary.englishProgress.englishDeptCourses}/${struct.deptMinimum || 8}` },
+                          { label: "Upper-level (200+)", value: `${summary.englishProgress.upperLevelCourses}/${struct.upperLevelRequired || 7}` },
+                          { label: "300-level seminars", value: `${summary.englishProgress.level300Courses}/${struct.level300Required || 2}` },
+                        ];
+                        const bottomTiles = [
+                          { label: "Postcolonial / Ethnic", value: `${countAssignedRequirement(programCourses, program.id, "english-postcolonial")}/${struct.postcolonialRequired || 1}` },
+                          { label: "Pre-1900", value: `${countAssignedRequirement(programCourses, program.id, "english-pre1900")}/${struct.pre1900Required || 3}` },
+                          { label: "Pre-1800", value: `${countAssignedRequirement(programCourses, program.id, "english-pre1800")}/${struct.pre1800Required || 2}` },
+                          ...(struct.creativeWritingRequired > 0
+                            ? [{ label: "Creative Writing Courses", value: `${countAssignedRequirement(programCourses, program.id, "english-creative-writing")}/${struct.creativeWritingRequired}` }]
+                            : []),
+                        ];
+                        const gridTemplate = (tiles) => ({
+                          gridTemplateColumns: `repeat(${Math.min(Math.max(tiles.length, 1), 4)}, minmax(0, 1fr))`,
+                        });
+                        return (
+                          <div className="space-y-2">
+                            <div className="grid gap-2" style={gridTemplate(topTiles)}>
+                              {topTiles.map(tile => (
+                              <div key={tile.label} className="rounded-lg bg-slate-50 px-3 py-2 h-full">
+                                <ProgramStatRow
+                                  label={tile.label}
+                                  value={tile.value}
+                                  labelClass="text-[0.55rem] uppercase tracking-wide text-slate-500"
+                                  valueClass="text-base font-semibold text-slate-900"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                            <div className="grid gap-2" style={gridTemplate(bottomTiles)}>
+                              {bottomTiles.map(tile => (
+                                <div key={tile.label} className="rounded border px-3 py-2 h-full">
+                                  <ProgramStatRow
+                                    label={tile.label}
+                                    value={tile.value}
+                                    labelClass="text-[0.55rem] uppercase text-slate-500"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+
                   {program.type !== "None" && program.value && summary && summary.isAnthro && summary.anthroProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
+                      <div className="flex justify-center py-2">
+                        <RingStat pct={requirementProgress.pct} label="Major progress" subtitle={requirementProgress.subtitle} />
+                      </div>
+                      <TotalUnitsCard stat={totalUnitsStat} />
                       {(() => {
                         const tiles = [
                           { label: "ANTH 101", req: "anth-101", fallback: summary.anthroProgress.introPrimary ? "✓" : "0/1" },
@@ -1165,8 +1618,12 @@ const countAssignedRequirement = (courses, programId, requirementId) => {
                     </div>
                   )}
 
-                  {program.type !== "None" && program.value && summary && !summary.isSpecial && !summary.isCS && !summary.isBio && !summary.isAnthro && (
+                  {program.type !== "None" && program.value && summary && !summary.isSpecial && !summary.isCS && !summary.isBio && !summary.isAnthro && !summary.isEnglish && (
                     <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                      <div className="col-span-full flex justify-center py-2">
+                        <RingStat pct={requirementProgress.pct} label="Major progress" subtitle={requirementProgress.subtitle} />
+                      </div>
+                      <TotalUnitsCard stat={totalUnitsStat} className="col-span-full" />
                       {(() => {
                         const manualRequired = new Set();
                         let manualElective = 0;
@@ -1192,40 +1649,53 @@ const countAssignedRequirement = (courses, programId, requirementId) => {
                         const displayRequired = manualRequiredCount || summary.requiredCompleted;
                         const displayElective = manualElective || summary.electiveCompleted;
                         const displayMath = manualMathCount || summary.mathCompleted;
-                        return (
-                          <>
-                            <div className="rounded-lg bg-slate-50 px-3 py-2">
-                              <div className="text-[0.55rem] uppercase text-slate-500">Required</div>
-                              <div className="text-base font-semibold text-slate-900">
-                                {displayRequired}/{summary.requiredTotal}
-                              </div>
+                        const cards = [
+                          <div key="required" className="rounded-lg bg-slate-50 px-3 py-2 h-full">
+                            <ProgramStatRow
+                              label="Required"
+                              value={`${displayRequired}/${summary.requiredTotal}`}
+                              labelClass="text-[0.55rem] uppercase text-slate-500"
+                              valueClass="text-base font-semibold text-slate-900"
+                            />
+                          </div>,
+                        ];
+                        if (summary.electiveTotal > 0) {
+                          cards.push(
+                            <div key="electives" className="rounded-lg bg-slate-50 px-3 py-2 h-full">
+                              <ProgramStatRow
+                                label="Electives"
+                                value={`${Math.min(displayElective, summary.electiveTotal)}/${summary.electiveTotal}`}
+                                labelClass="text-[0.55rem] uppercase text-slate-500"
+                                valueClass="text-base font-semibold text-slate-900"
+                              />
                             </div>
-                            {summary.electiveTotal > 0 && (
-                              <div className="rounded-lg bg-slate-50 px-3 py-2">
-                                <div className="text-[0.55rem] uppercase text-slate-500">Electives</div>
-                                <div className="text-base font-semibold text-slate-900">
-                                  {Math.min(displayElective, summary.electiveTotal)}/{summary.electiveTotal}
-                                </div>
-                              </div>
-                            )}
-                            {summary.mathTotal > 0 && (
-                              <div className="rounded-lg bg-slate-50 px-3 py-2">
-                                <div className="text-[0.55rem] uppercase text-slate-500">Supporting Math</div>
-                                <div className="text-base font-semibold text-slate-900">
-                                  {Math.min(displayMath, summary.mathTotal)}/{summary.mathTotal}
-                                </div>
-                              </div>
-                            )}
-                            {summary.electiveTotal === 0 && summary.mathTotal === 0 && (
-                              <div className="rounded-lg bg-slate-50 px-3 py-2">
-                                <div className="text-[0.55rem] uppercase text-slate-500">Progress</div>
-                                <div className="text-base font-semibold text-slate-900">
-                                  {displayRequired}/{summary.requiredTotal || 1}
-                                </div>
-                              </div>
-                            )}
-                          </>
-                        );
+                          );
+                        }
+                        if (summary.mathTotal > 0) {
+                          cards.push(
+                            <div key="math" className="rounded-lg bg-slate-50 px-3 py-2 h-full">
+                              <ProgramStatRow
+                                label="Supporting Math"
+                                value={`${Math.min(displayMath, summary.mathTotal)}/${summary.mathTotal}`}
+                                labelClass="text-[0.55rem] uppercase text-slate-500"
+                                valueClass="text-base font-semibold text-slate-900"
+                              />
+                            </div>
+                          );
+                        }
+                        if (summary.electiveTotal === 0 && summary.mathTotal === 0) {
+                          cards.push(
+                            <div key="progress" className="rounded-lg bg-slate-50 px-3 py-2 h-full">
+                              <ProgramStatRow
+                                label="Progress"
+                                value={`${displayRequired}/${summary.requiredTotal || 1}`}
+                                labelClass="text-[0.55rem] uppercase text-slate-500"
+                                valueClass="text-base font-semibold text-slate-900"
+                              />
+                            </div>
+                          );
+                        }
+                        return cards;
                       })()}
                     </div>
                   )}
@@ -1234,74 +1704,6 @@ const countAssignedRequirement = (courses, programId, requirementId) => {
             })}
           </div>
         </div>
-        <div className="rounded-2xl border bg-white p-3 text-[0.75rem]">
-          <div className="mb-2 text-sm font-semibold text-slate-900">
-            Distribution Groups (3-3-3)
-          </div>
-          <MiniReqBar
-            label="Group 1: Humanities & Arts"
-            have={getReq("GROUP1_TOTAL").have}
-            target={3}
-          />
-          <div className="text-[0.6rem] text-slate-500 ml-2 mb-2">
-            (≥1 Language/Lit + ≥1 Arts, 3 total)
-          </div>
-          <MiniReqBar
-            label="Group 2: Social Sciences"
-            have={getReq("GROUP2_TOTAL").have}
-            target={3}
-          />
-          <div className="text-[0.6rem] text-slate-500 ml-2 mb-2">
-            (1 SBA + 2 from EC/REP/HST)
-          </div>
-          <MiniReqBar
-            label="Group 3: Science & Math"
-            have={getReq("GROUP3_TOTAL").have}
-            target={3}
-          />
-          <div className="text-[0.6rem] text-slate-500 ml-2">
-            (1 Science + 1 Math + 1 more, ≥1 lab)
-          </div>
-        </div>
-
-        <div className="rounded-2xl border bg-white p-3 text-[0.75rem]">
-          <div className="mb-2 text-sm font-semibold text-slate-900">
-            Other Requirements
-          </div>
-          <MiniReqBar label="First-Year Writing" have={getReq("WRIT").have} target={1} />
-          {(() => {
-            const langReq = getReq("LANG");
-              return (
-              <MiniReqBar 
-                label={`Foreign Language${languageWaived ? " (Waived)" : ""}`} 
-                have={langReq.have} 
-                target={langReq.targetCount} 
-                pct={langReq.pct}
-              />
-            );
-          })()}
-          <MiniReqBar label="Quantitative Reasoning" have={getReq("QR").have} target={1} />
-          <MiniReqBar label="300-level Courses" have={getReq("300").have} target={4} />
-          <div className="mb-2">
-            <div className="flex items-center justify-between text-[0.7rem]">
-              <span>
-                Physical Education* 
-                <span className="ml-1 text-[0.6rem] text-slate-500">(*One PE class = 4 units)</span>
-              </span>
-              <span className="text-[0.65rem]">
-                {getReq("PE").have}/{getReq("PE").targetCount}
-              </span>
-            </div>
-            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
-              <div
-                className="h-full rounded-full bg-indigo-500"
-                style={{ width: `${getReq("PE").pct * 100}%` }}
-              />
-            </div>
-          </div>
-          <MiniReqBar label="Experiential Learning" have={getReq("EXP").have} target={2} />
-        </div>
-
       </div>
     </div>
   );
@@ -1445,7 +1847,7 @@ const countAssignedRequirement = (courses, programId, requirementId) => {
     );
   };
 
-const renderMASMajor = (majorReq, allCourses) => {
+const renderMASMajor = (majorReq, courses) => {
   const {
     visualAnalysis,
     studioFoundation,
@@ -1455,7 +1857,7 @@ const renderMASMajor = (majorReq, allCourses) => {
     capstone,
     additional,
     totals,
-  } = computeMASProgress(allCourses, majorReq);
+  } = computeMASProgress(courses, majorReq);
 
     return (
       <div className="mt-4 space-y-4">
@@ -1473,9 +1875,7 @@ const renderMASMajor = (majorReq, allCourses) => {
             </select>
           </div>
 
-          <div className="mb-4 text-xs text-slate-600">
-            {majorReq.description}
-          </div>
+          {renderMajorIntro(majorReq)}
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {/* Introductory Requirements */}
@@ -1580,8 +1980,8 @@ const renderMASMajor = (majorReq, allCourses) => {
     );
 };
 
-const renderCSMajor = (majorReq, allCourses) => {
-  const progress = computeCSProgress(allCourses, majorReq.csStructure);
+const renderCSMajor = (majorReq, courses) => {
+  const progress = computeCSProgress(courses, majorReq.csStructure);
   const totalCore = progress.coreGroups.length;
   const completedCore = progress.coreGroups.filter(group => group.completed).length;
   const introLabel = majorReq.csStructure.introOptions?.join(", ") || "Intro courses";
@@ -1603,7 +2003,7 @@ const renderCSMajor = (majorReq, allCourses) => {
           </select>
         </div>
 
-        <div className="mb-4 text-xs text-slate-600">{majorReq.description}</div>
+        {renderMajorIntro(majorReq)}
 
         <div className="grid gap-4 md:grid-cols-2">
           <div className="rounded-lg border p-3">
@@ -1681,8 +2081,8 @@ const renderCSMajor = (majorReq, allCourses) => {
   );
 };
 
-const renderBioMajor = (majorReq, allCourses) => {
-  const progress = computeBioProgress(allCourses, majorReq.bioStructure);
+const renderBioMajor = (majorReq, courses) => {
+  const progress = computeBioProgress(courses, majorReq.bioStructure);
   const groupCompletion = [progress.groupCell, progress.groupSystems, progress.groupCommunity].filter(Boolean).length;
 
   return (
@@ -1695,13 +2095,14 @@ const renderBioMajor = (majorReq, allCourses) => {
             onChange={(e) => setSelectedMajor(e.target.value)}
             className="rounded border px-3 py-1 text-sm"
           >
+            <option value="">Select a major</option>
             {Object.keys(majorRequirements).map(major => (
               <option key={major} value={major}>{major}</option>
             ))}
           </select>
         </div>
 
-        <div className="mb-4 text-xs text-slate-600">{majorReq.description}</div>
+        {renderMajorIntro(majorReq)}
 
         <div className="grid gap-4 md:grid-cols-2">
           <div className="rounded-lg border p-3">
@@ -1802,8 +2203,349 @@ const renderBioMajor = (majorReq, allCourses) => {
   );
 };
 
-const renderAnthroMajor = (majorReq, allCourses) => {
-  const progress = computeAnthroProgress(allCourses, majorReq.anthroStructure, false);
+const renderCustomMajor = () => {
+  const canAddRow = customMajorRequirements.length < MAX_CUSTOM_MAJOR_REQUIREMENTS;
+
+  return (
+    <div className="mt-4 space-y-4">
+      <div className="rounded-2xl border bg-white p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="text-sm font-semibold text-slate-900">Individual / Custom Major</div>
+          <select
+            value={selectedMajor}
+            onChange={(e) => setSelectedMajor(e.target.value)}
+            className="rounded border px-3 py-1 text-sm"
+          >
+            <option value="">Select a major</option>
+            {Object.keys(majorRequirements).map(major => (
+              <option key={major} value={major}>{major}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-2">
+          {customMajorRequirements.map((req, idx) => (
+            <div key={idx} className="flex items-center gap-2">
+              <span className="w-6 text-right text-xs text-slate-500">{idx + 1}.</span>
+              <input
+                type="text"
+                value={req}
+                onChange={(e) => updateCustomRequirement(idx, e.target.value)}
+                placeholder="Enter course or requirement name"
+                className="flex-1 rounded-lg border px-3 py-2 text-sm"
+                maxLength={120}
+              />
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 flex justify-end">
+          <button
+            type="button"
+            onClick={addCustomRequirementRow}
+            disabled={!canAddRow}
+            className={cx(
+              "rounded-full px-4 py-1.5 text-sm font-medium",
+              canAddRow ? "border border-slate-300 text-slate-700 hover:bg-slate-50" : "border border-slate-200 text-slate-400 cursor-not-allowed"
+            )}
+          >
+            {canAddRow ? "Add requirement" : "Max 15 rows reached"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const renderMathMajor = (majorReq, courses) => {
+  const progress = computeMathProgress(courses, majorReq.mathStructure);
+  return (
+    <div className="mt-4 space-y-4">
+      <div className="rounded-2xl border bg-white p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="text-sm font-semibold text-slate-900">Mathematics Major</div>
+          <select
+            value={selectedMajor}
+            onChange={(e) => setSelectedMajor(e.target.value)}
+            className="rounded border px-3 py-1 text-sm"
+          >
+            <option value="">Select a major</option>
+            {Object.keys(majorRequirements).map(major => (
+              <option key={major} value={major}>{major}</option>
+            ))}
+          </select>
+        </div>
+
+        {renderMajorIntro(majorReq)}
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-lg border p-3">
+            <div className="mb-2 text-sm font-medium">Calculus foundations</div>
+            <div className="space-y-2 text-xs">
+              <div className={cx(
+                "flex items-center justify-between rounded border px-2 py-1",
+                progress.calculus115 ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600"
+              )}>
+                <span>MATH 115</span>
+                <span className="font-semibold">{progress.calculus115 ? "✓" : "Pending"}</span>
+              </div>
+              <div className={cx(
+                "flex items-center justify-between rounded border px-2 py-1",
+                progress.calculusSecond ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600"
+              )}>
+                <span>MATH 116 or MATH 120</span>
+                <span className="font-semibold">{progress.calculusSecond ? "✓" : "Pending"}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border p-3">
+            <div className="mb-2 text-sm font-medium">Core 200-level courses</div>
+            <div className="space-y-2 text-xs">
+              {progress.coreCompleted.map(item => (
+                <div key={item.code} className={cx(
+                  "flex items-center justify-between rounded border px-2 py-1",
+                  item.completed ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600"
+                )}>
+                  <span>{item.code}</span>
+                  <span className="font-semibold">{item.completed ? "✓" : "Pending"}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-lg border p-3">
+            <div className="mb-2 text-sm font-medium">300-level anchors</div>
+            <div className="space-y-2 text-xs">
+              {progress.seminarCompleted.map(item => (
+                <div key={item.code} className={cx(
+                  "flex items-center justify-between rounded border px-2 py-1",
+                  item.completed ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600"
+                )}>
+                  <span>{item.code}</span>
+                  <span className="font-semibold">{item.completed ? "✓" : "Pending"}</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 rounded bg-slate-50 px-3 py-2 text-xs">
+              <div className="text-[0.55rem] uppercase text-slate-500">Additional 300-level MATH</div>
+              <div className="flex items-center justify-between">
+                <span>Beyond MATH 302/305</span>
+                <span className="text-base font-semibold text-slate-900">
+                  {progress.additional300Count}/{progress.additional300Required}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border p-3">
+            <div className="mb-2 text-sm font-medium">Advanced-unit count</div>
+            <div className="rounded bg-slate-50 px-3 py-2 text-xs">
+              <div className="text-[0.55rem] uppercase text-slate-500">MATH/STAT at 200+ level</div>
+              <div className="text-base font-semibold text-slate-900">
+                {progress.advancedTotal}/{progress.advancedRequired}
+              </div>
+              <div className="mt-1 text-[0.65rem] text-slate-500">
+                Includes STAT courses; excludes MATH 350/360/370.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {progress.presentationNote && (
+          <div className="mt-4 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/60 p-3 text-[0.75rem] text-indigo-900">
+            <div className="text-[0.6rem] uppercase font-semibold tracking-wide">Presentation requirement</div>
+            <p className="mt-1">{progress.presentationNote}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const renderEconMajor = (majorReq, courses) => {
+  const progress = computeEconProgress(courses, majorReq.econStructure);
+  return (
+    <div className="mt-4 space-y-4">
+      <div className="rounded-2xl border bg-white p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="text-sm font-semibold text-slate-900">Economics Major</div>
+          <select
+            value={selectedMajor}
+            onChange={(e) => setSelectedMajor(e.target.value)}
+            className="rounded border px-3 py-1 text-sm"
+          >
+            <option value="">Select a major</option>
+            {Object.keys(majorRequirements).map(major => (
+              <option key={major} value={major}>{major}</option>
+            ))}
+          </select>
+        </div>
+
+        {renderMajorIntro(majorReq)}
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-lg border p-3">
+            <div className="mb-2 text-sm font-medium">Microeconomics sequence</div>
+            <div className="space-y-2 text-xs">
+              <div className={cx(
+                "flex items-center justify-between rounded border px-2 py-1",
+                progress.microIntro ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600"
+              )}>
+                <span>ECON 101 / 101P</span>
+                <span className="font-semibold">{progress.microIntro ? "✓" : "Pending"}</span>
+              </div>
+              <div className={cx(
+                "flex items-center justify-between rounded border px-2 py-1",
+                progress.microIntermediate ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600"
+              )}>
+                <span>ECON 201</span>
+                <span className="font-semibold">{progress.microIntermediate ? "✓" : "Pending"}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border p-3">
+            <div className="mb-2 text-sm font-medium">Macroeconomics sequence</div>
+            <div className="space-y-2 text-xs">
+              <div className={cx(
+                "flex items-center justify-between rounded border px-2 py-1",
+                progress.macroIntro ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600"
+              )}>
+                <span>ECON 102 / 102P</span>
+                <span className="font-semibold">{progress.macroIntro ? "✓" : "Pending"}</span>
+              </div>
+              <div className={cx(
+                "flex items-center justify-between rounded border px-2 py-1",
+                progress.macroIntermediate ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600"
+              )}>
+                <span>ECON 202</span>
+                <span className="font-semibold">{progress.macroIntermediate ? "✓" : "Pending"}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border p-3">
+            <div className="mb-2 text-sm font-medium">Statistics & Econometrics</div>
+            <div className="space-y-2 text-xs">
+              <div className={cx(
+                "flex items-center justify-between rounded border px-2 py-1",
+                progress.statsIntroSatisfied ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600"
+              )}>
+                <span>ECON 103 or approved substitute</span>
+                <span className="font-semibold">
+                  {progress.statsIntroCourse ? "✓ ECON 103" : progress.statsIntroViaAlt ? "Alt credit" : "Pending"}
+                </span>
+              </div>
+              <div className={cx(
+                "flex items-center justify-between rounded border px-2 py-1",
+                progress.statsIntermediate ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600"
+              )}>
+                <span>ECON 203</span>
+                <span className="font-semibold">{progress.statsIntermediate ? "✓" : "Pending"}</span>
+              </div>
+            </div>
+            {progress.statsIntroViaAlt && (
+              <div className="mt-2 rounded bg-amber-50 px-3 py-2 text-[0.65rem] text-amber-900">
+                Using STAT/PSYC credit in place of ECON 103? Add an extra ECON elective so you still reach nine ECON courses.
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border p-3 space-y-3">
+            <div>
+              <div className="mb-1 text-sm font-medium">Advanced work & electives</div>
+              <div className="rounded bg-slate-50 px-3 py-2 text-xs">
+                <div className="text-[0.55rem] uppercase text-slate-500">300-level ECON (at Wellesley)</div>
+                <div className="text-base font-semibold text-slate-900">
+                  {progress.level300Count}/{progress.level300Required}
+                </div>
+                <div className="mt-1 text-[0.65rem] text-slate-500">Excludes ECON 350/360/370.</div>
+              </div>
+            </div>
+            <div className="rounded bg-slate-50 px-3 py-2 text-xs">
+              <div className="text-[0.55rem] uppercase text-slate-500">Total counted courses</div>
+              <div className="text-base font-semibold text-slate-900">
+                {progress.totalCount}/{progress.totalRequired}
+              </div>
+              {progress.substitutionCourses.length > 0 && (
+                <div className="mt-1 text-[0.65rem] text-slate-500">
+                  Includes {progress.substitutionCourses.join(", ")}.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const renderEnglishMajor = (majorReq, relevantCourses) => {
+  const struct = majorReq.englishStructure || {};
+  const progress = computeEnglishProgress(relevantCourses, struct);
+  return (
+    <div className="mt-4 space-y-4">
+      <div className="rounded-2xl border bg-white p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="text-sm font-semibold text-slate-900">{majorReq.description ? "English Major" : "English Programs"}</div>
+          <select
+            value={selectedMajor}
+            onChange={(e) => setSelectedMajor(e.target.value)}
+            className="rounded border px-3 py-1 text-sm"
+          >
+            <option value="">Select a major</option>
+            {Object.keys(majorRequirements).map(major => (
+              <option key={major} value={major}>{major}</option>
+            ))}
+          </select>
+        </div>
+
+        {renderMajorIntro(majorReq)}
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-lg border p-3">
+            <div className="mb-2 text-sm font-medium">Course totals</div>
+            <div className="space-y-1 text-xs">
+              <div className="flex items-center justify-between rounded bg-slate-50 px-2 py-1">
+                <span>English dept courses</span>
+                <span className="font-semibold">{progress.englishDeptCourses}/{struct.deptMinimum || 8}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border p-3">
+            <div className="mb-2 text-sm font-medium">Advanced coursework</div>
+            <div className="space-y-1 text-xs">
+              <div className="flex items-center justify-between rounded bg-slate-50 px-2 py-1">
+                <span>Upper-level (200+)</span>
+                <span className="font-semibold">{progress.upperLevelCourses}/{struct.upperLevelRequired || 7}</span>
+              </div>
+              <div className="flex items-center justify-between rounded bg-slate-50 px-2 py-1">
+                <span>300-level seminars</span>
+                <span className="font-semibold">{progress.level300Courses}/{struct.level300Required || 2}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border p-3 md:col-span-2">
+            <div className="mb-2 text-sm font-medium">Distribution checkpoints</div>
+            <ul className="text-xs text-slate-600 list-disc pl-5 space-y-1">
+              <li>Assign individual courses to the Postcolonial/Ethnic and Pre-1900/Pre-1800 buckets using the “Counts toward program(s)” panel in the planner.</li>
+              {struct.creativeWritingRequired > 0 && (
+                <li>English & Creative Writing majors should mark four creative writing experiences using the same panel.</li>
+              )}
+              <li>Only traditional seminars count toward the two required 300-level courses (independent work and 350s do not).</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const renderAnthroMajor = (majorReq, courses) => {
+  const progress = computeAnthroProgress(courses, majorReq.anthroStructure, false);
 
   return (
     <div className="mt-4 space-y-4">
@@ -1815,13 +2557,14 @@ const renderAnthroMajor = (majorReq, allCourses) => {
             onChange={(e) => setSelectedMajor(e.target.value)}
             className="rounded border px-3 py-1 text-sm"
           >
+            <option value="">Select a major</option>
             {Object.keys(majorRequirements).map(major => (
               <option key={major} value={major}>{major}</option>
             ))}
           </select>
         </div>
 
-        <div className="mb-4 text-xs text-slate-600">{majorReq.description}</div>
+        {renderMajorIntro(majorReq)}
 
         <div className="grid gap-4 md:grid-cols-2">
           <div className="rounded-lg border p-3">
@@ -1889,42 +2632,10 @@ const renderAnthroMajor = (majorReq, allCourses) => {
 };
 
   const renderMajor = () => {
-    const majorReq = majorRequirements[selectedMajor];
-    if (!majorReq) return null;
-
-    if (selectedMajor === "Media Arts and Sciences") {
-      return renderMASMajor(majorReq, allCourses);
-    }
-    if (selectedMajor === "Computer Science" && majorReq.csStructure) {
-      return renderCSMajor(majorReq, allCourses);
-    }
-    if (selectedMajor === "Biological Sciences" && majorReq.bioStructure) {
-      return renderBioMajor(majorReq, allCourses);
-    }
-    if (selectedMajor === "Anthropology" && majorReq.anthroStructure) {
-      return renderAnthroMajor(majorReq, allCourses);
-    }
-
-    const completedRequired = majorReq.requiredCourses ? majorReq.requiredCourses.filter(req => 
-      allCourses.some(course => course.code === req)
-    ) : [];
-
-    const majorElectives = allCourses.filter(course => {
-      const dept = detectDepartmentFromCode(course.code);
-      const majorDept = selectedMajor === "Computer Science" ? "Computer Science" : 
-                       selectedMajor === "Mathematics" ? "Mathematics" :
-                       selectedMajor === "Economics" ? "Economics" : null;
-      return dept === majorDept && !majorReq.requiredCourses?.includes(course.code) && course.level >= 200;
-    });
-
-    const completedMath = majorReq.mathRequirements ? 
-      majorReq.mathRequirements.filter(req => 
-        allCourses.some(course => course.code === req)
-      ) : [];
-
-    return (
-      <div className="mt-4 space-y-4">
-        <div className="rounded-2xl border bg-white p-4">
+    const majorReq = selectedMajor ? majorRequirements[selectedMajor] : null;
+    if (!majorReq) {
+      return (
+        <div className="mt-4 rounded-2xl border bg-white p-4">
           <div className="mb-3 flex items-center justify-between">
             <div className="text-sm font-semibold text-slate-900">Major Requirements</div>
             <select
@@ -1932,15 +2643,81 @@ const renderAnthroMajor = (majorReq, allCourses) => {
               onChange={(e) => setSelectedMajor(e.target.value)}
               className="rounded border px-3 py-1 text-sm"
             >
+              <option value="">Select a major</option>
               {Object.keys(majorRequirements).map(major => (
                 <option key={major} value={major}>{major}</option>
               ))}
             </select>
           </div>
+          <p className="text-sm text-slate-600">
+            {selectedMajor ? `${selectedMajor} is not configured yet.` : "Choose a major from the dropdown to see its checklist."}
+          </p>
+        </div>
+      );
+    }
 
-          <div className="mb-4 text-xs text-slate-600">
-            {majorReq.description}
-          </div>
+    const relevantCourses = getMajorRelevantCourses(selectedMajor, allCourses, programSelections);
+
+    if (selectedMajor === "Media Arts and Sciences") {
+      return renderMASMajor(majorReq, relevantCourses);
+    }
+    if (selectedMajor === "Computer Science" && majorReq.csStructure) {
+      return renderCSMajor(majorReq, relevantCourses);
+    }
+    if (selectedMajor === "Biological Sciences" && majorReq.bioStructure) {
+      return renderBioMajor(majorReq, relevantCourses);
+    }
+    if (selectedMajor === "Individual / Custom Major") {
+      return renderCustomMajor();
+    }
+    if (selectedMajor === "Mathematics" && majorReq.mathStructure) {
+      return renderMathMajor(majorReq, relevantCourses);
+    }
+    if (selectedMajor === "Economics" && majorReq.econStructure) {
+      return renderEconMajor(majorReq, relevantCourses);
+    }
+    if ((selectedMajor === "English" || selectedMajor === "English and Creative Writing") && majorReq.englishStructure) {
+      return renderEnglishMajor(majorReq, relevantCourses);
+    }
+    if (selectedMajor === "Anthropology" && majorReq.anthroStructure) {
+      return renderAnthroMajor(majorReq, relevantCourses);
+    }
+
+    const completedRequired = majorReq.requiredCourses ? majorReq.requiredCourses.filter(req => 
+      relevantCourses.some(course => codesMatch(course.code, req))
+    ) : [];
+
+    const majorElectives = relevantCourses.filter(course => {
+      const dept = detectDepartmentFromCode(course.code);
+      const majorDept = selectedMajor === "Computer Science" ? "Computer Science" : 
+                       selectedMajor === "Mathematics" ? "Mathematics" :
+                       selectedMajor === "Economics" ? "Economics" : null;
+      return dept === majorDept && !(majorReq.requiredCourses || []).some(req => codesMatch(course.code, req)) && course.level >= 200;
+    });
+
+    const completedMath = majorReq.mathRequirements ? 
+      majorReq.mathRequirements.filter(req => 
+        relevantCourses.some(course => codesMatch(course.code, req))
+      ) : [];
+
+    return (
+      <div className="mt-4 space-y-4">
+        <div className="rounded-2xl border bg-white p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="text-sm font-semibold text-slate-900">Major Requirements</div>
+          <select
+            value={selectedMajor}
+            onChange={(e) => setSelectedMajor(e.target.value)}
+            className="rounded border px-3 py-1 text-sm"
+          >
+            <option value="">Select a major</option>
+            {Object.keys(majorRequirements).map(major => (
+              <option key={major} value={major}>{major}</option>
+            ))}
+          </select>
+        </div>
+
+          {renderMajorIntro(majorReq)}
 
           <div className="grid gap-4 md:grid-cols-3">
             <div className="rounded-lg border p-3">
