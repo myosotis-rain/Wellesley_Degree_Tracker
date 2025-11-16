@@ -27,7 +27,7 @@ const TABS = [
   { id: "plan", label: "Planner" },
   { id: "reqs", label: "Requirements" },
   { id: "courses", label: "Courses" },
-  { id: "major", label: "Major" },
+  { id: "major", label: "Major / Minor" },
 ];
 
 const PROGRAM_TYPE_OPTIONS = ["Major", "Second Major", "Minor", "None"];
@@ -39,6 +39,64 @@ const DEFAULT_PROGRAM_SELECTIONS = [
 
 const MAX_CUSTOM_MAJOR_REQUIREMENTS = 15;
 const DEFAULT_CUSTOM_MAJOR_COUNT = 9;
+const CUSTOM_MAJOR_VALUE_PREFIX = "custom-major:";
+const CUSTOM_MINOR_VALUE_PREFIX = "custom-minor:";
+const MIN_CUSTOM_MINOR_REQUIREMENTS = 6;
+const MAX_CUSTOM_MINOR_REQUIREMENTS = 12;
+const DEFAULT_CUSTOM_MINOR_COUNT = 6;
+
+const isCustomMajorValue = (value = "") => {
+  if (typeof value !== "string") return false;
+  return value === "Custom Major" || value.startsWith(CUSTOM_MAJOR_VALUE_PREFIX);
+};
+
+const resolveMajorConfigKey = (value = "") => {
+  if (!value) return "";
+  if (majorRequirements[value]) return value;
+  if (isCustomMajorValue(value)) return "Custom Major";
+  return "";
+};
+
+const ensureCustomMajorList = (saved) => {
+  if (!Array.isArray(saved)) return [];
+  return saved
+    .map((item, idx) => {
+      const name = typeof item?.name === "string" ? item.name.trim() : "";
+      const rawId = typeof item?.id === "string" && item.id ? item.id : `legacy-${idx}`;
+      if (!name) return null;
+      return { id: rawId, name };
+    })
+    .filter(Boolean);
+};
+
+const createCustomMajorOptionValue = (id) => `${CUSTOM_MAJOR_VALUE_PREFIX}${id}`;
+const generateCustomMajorId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+const isCustomMinorValue = (value = "") => {
+  if (typeof value !== "string") return false;
+  return value === "Custom Minor" || value.startsWith(CUSTOM_MINOR_VALUE_PREFIX);
+};
+
+const resolveMinorConfigKey = (value = "") => {
+  if (!value) return "";
+  if (isCustomMinorValue(value)) return "Custom Minor";
+  return value;
+};
+
+const ensureCustomMinorList = (saved) => {
+  if (!Array.isArray(saved)) return [];
+  return saved
+    .map((item, idx) => {
+      const name = typeof item?.name === "string" ? item.name.trim() : "";
+      const rawId = typeof item?.id === "string" && item.id ? item.id : `legacy-minor-${idx}`;
+      if (!name) return null;
+      return { id: rawId, name };
+    })
+    .filter(Boolean);
+};
+
+const createCustomMinorOptionValue = (id) => `${CUSTOM_MINOR_VALUE_PREFIX}${id}`;
+const generateCustomMinorId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
 const normalizeCourseCode = (code = "") => code.trim().toUpperCase();
 const compactCourseCode = (code = "") => normalizeCourseCode(code).replace(/\s+/g, "");
@@ -69,7 +127,9 @@ const programDepartment = (programName) => {
 };
 
 const summarizeProgramProgress = (programName, courses, programMeta = {}) => {
-  const config = majorRequirements[programName];
+  const normalizedKey = resolveMajorConfigKey(programName);
+  if (!normalizedKey || normalizedKey === "Custom Major") return null;
+  const config = majorRequirements[normalizedKey];
   if (!config) return null;
   if (programName === "Media Arts and Sciences") {
     return { config, isSpecial: true, masProgress: computeMASProgress(courses, config) };
@@ -235,8 +295,10 @@ const programRequirementOptionSets = {
 };
 
 const getRequirementOptionsForMajor = (majorName) => {
-  if (programRequirementOptionSets[majorName]) return programRequirementOptionSets[majorName];
-  const config = majorRequirements[majorName];
+  const normalizedKey = resolveMajorConfigKey(majorName);
+  if (!normalizedKey) return [];
+  if (programRequirementOptionSets[normalizedKey]) return programRequirementOptionSets[normalizedKey];
+  const config = majorRequirements[normalizedKey];
   if (!config) return [];
   const options = [];
   (config.requiredCourses || []).forEach(course => {
@@ -666,12 +728,24 @@ export default function App() {
   const savedData = savedDataRef.current || null;
   const initialStartYear = savedData?.startYear || 2024;
   const initialProgramSelections = ensureProgramSelections(savedData?.programSelections);
+  const getInitialCustomMinorRequirements = () => {
+    const savedList = Array.isArray(savedData?.customMinorRequirements)
+      ? savedData.customMinorRequirements.slice(0, MAX_CUSTOM_MINOR_REQUIREMENTS)
+      : [];
+    if (savedList.length >= DEFAULT_CUSTOM_MINOR_COUNT) return savedList;
+    const missing = DEFAULT_CUSTOM_MINOR_COUNT - savedList.length;
+    return [...savedList, ...Array(Math.max(missing, 0)).fill("")];
+  };
   const [terms, setTerms] = useState(() => savedData?.terms || getDefaultTerms(initialStartYear));
   const [activeTermId, setActiveTermId] = useState(null);
   const [activeTab, setActiveTab] = useState(savedData?.activeTab || "plan");
   const [startYear, setStartYear] = useState(initialStartYear);
   const [programSelections, setProgramSelections] = useState(initialProgramSelections);
-  const [selectedMajor, setSelectedMajor] = useState("");
+  const [primaryMajor, setPrimaryMajor] = useState(savedData?.primaryMajor || "");
+  const [secondaryMajor, setSecondaryMajor] = useState(savedData?.secondaryMajor || "");
+  const [showSecondaryMajor, setShowSecondaryMajor] = useState(savedData?.showSecondaryMajor || false);
+  const [selectedMinor, setSelectedMinor] = useState(savedData?.selectedMinor || "");
+  const [showMinorPlanner, setShowMinorPlanner] = useState(savedData?.showMinorPlanner || false);
   const [yearLabels, setYearLabels] = useState(
     savedData?.yearLabels || Object.fromEntries(defaultYears.map((y) => [y.id, y.label]))
   );
@@ -679,6 +753,15 @@ export default function App() {
   const [customMajorRequirements, setCustomMajorRequirements] = useState(
     () => savedData?.customMajorRequirements || Array(DEFAULT_CUSTOM_MAJOR_COUNT).fill("")
   );
+  const [customMajors, setCustomMajors] = useState(() => ensureCustomMajorList(savedData?.customMajors));
+  const [newCustomMajorName, setNewCustomMajorName] = useState("");
+  const [customMinorRequirements, setCustomMinorRequirements] = useState(getInitialCustomMinorRequirements);
+  const [customMinors, setCustomMinors] = useState(() => ensureCustomMinorList(savedData?.customMinors));
+  const [newCustomMinorName, setNewCustomMinorName] = useState("");
+  const [editingCustomMajorId, setEditingCustomMajorId] = useState(null);
+  const [editingCustomMajorName, setEditingCustomMajorName] = useState("");
+  const [editingCustomMinorId, setEditingCustomMinorId] = useState(null);
+  const [editingCustomMinorName, setEditingCustomMinorName] = useState("");
 
   const termById = (id) => terms.find(t => t.id === id) || null;
 
@@ -695,6 +778,133 @@ export default function App() {
     });
   };
 
+  const updateCustomMinorRequirement = (index, value) => {
+    setCustomMinorRequirements(prev =>
+      prev.map((entry, i) => (i === index ? value : entry))
+    );
+  };
+
+  const addCustomMinorRequirementRow = () => {
+    setCustomMinorRequirements(prev => {
+      if (prev.length >= MAX_CUSTOM_MINOR_REQUIREMENTS) return prev;
+      return [...prev, ""];
+    });
+  };
+
+  const addCustomMajor = () => {
+    const trimmed = newCustomMajorName.trim();
+    if (!trimmed) return;
+    if (customMajors.some(item => item.name.toLowerCase() === trimmed.toLowerCase())) return;
+    const entry = { id: generateCustomMajorId(), name: trimmed };
+    const newValue = createCustomMajorOptionValue(entry.id);
+    setCustomMajors(prev => [...prev, entry]);
+    if (!primaryMajor) {
+      setPrimaryMajor(newValue);
+    } else if (!showSecondaryMajor || secondaryMajor) {
+      setPrimaryMajor(newValue);
+    } else {
+      setSecondaryMajor(newValue);
+    }
+    setNewCustomMajorName("");
+  };
+
+  const removeCustomMajor = (majorId) => {
+    const valueToRemove = createCustomMajorOptionValue(majorId);
+    setCustomMajors(prev => prev.filter(item => item.id !== majorId));
+    setProgramSelections(prev =>
+      prev.map(program =>
+        program.value === valueToRemove ? { ...program, value: "" } : program
+      )
+    );
+    setPrimaryMajor(prev => (prev === valueToRemove ? "Custom Major" : prev));
+    setSecondaryMajor(prev => (prev === valueToRemove ? "" : prev));
+    if (editingCustomMajorId === majorId) {
+      setEditingCustomMajorId(null);
+      setEditingCustomMajorName("");
+    }
+  };
+
+  const startEditingCustomMajor = (major) => {
+    setEditingCustomMajorId(major.id);
+    setEditingCustomMajorName(major.name);
+  };
+
+  const cancelEditingCustomMajor = () => {
+    setEditingCustomMajorId(null);
+    setEditingCustomMajorName("");
+  };
+
+  const saveEditingCustomMajor = () => {
+    if (!editingCustomMajorId) return;
+    const trimmed = editingCustomMajorName.trim();
+    if (!trimmed) return;
+    if (customMajors.some(item =>
+      item.id !== editingCustomMajorId && item.name.toLowerCase() === trimmed.toLowerCase()
+    )) {
+      return;
+    }
+    setCustomMajors(prev =>
+      prev.map(item =>
+        item.id === editingCustomMajorId ? { ...item, name: trimmed } : item
+      )
+    );
+    setEditingCustomMajorId(null);
+    setEditingCustomMajorName("");
+  };
+
+  const addCustomMinor = () => {
+    const trimmed = newCustomMinorName.trim();
+    if (!trimmed) return;
+    if (customMinors.some(item => item.name.toLowerCase() === trimmed.toLowerCase())) return;
+    const entry = { id: generateCustomMinorId(), name: trimmed };
+    setCustomMinors(prev => [...prev, entry]);
+    setSelectedMinor(createCustomMinorOptionValue(entry.id));
+    setNewCustomMinorName("");
+  };
+
+  const removeCustomMinor = (minorId) => {
+    const valueToRemove = createCustomMinorOptionValue(minorId);
+    setCustomMinors(prev => prev.filter(item => item.id !== minorId));
+    setProgramSelections(prev =>
+      prev.map(program =>
+        program.value === valueToRemove ? { ...program, value: "" } : program
+      )
+    );
+    setSelectedMinor(prev => (prev === valueToRemove ? "Custom Minor" : prev));
+    if (editingCustomMinorId === minorId) {
+      setEditingCustomMinorId(null);
+      setEditingCustomMinorName("");
+    }
+  };
+
+  const startEditingCustomMinor = (minor) => {
+    setEditingCustomMinorId(minor.id);
+    setEditingCustomMinorName(minor.name);
+  };
+
+  const cancelEditingCustomMinor = () => {
+    setEditingCustomMinorId(null);
+    setEditingCustomMinorName("");
+  };
+
+  const saveEditingCustomMinor = () => {
+    if (!editingCustomMinorId) return;
+    const trimmed = editingCustomMinorName.trim();
+    if (!trimmed) return;
+    if (customMinors.some(item =>
+      item.id !== editingCustomMinorId && item.name.toLowerCase() === trimmed.toLowerCase()
+    )) {
+      return;
+    }
+    setCustomMinors(prev =>
+      prev.map(item =>
+        item.id === editingCustomMinorId ? { ...item, name: trimmed } : item
+      )
+    );
+    setEditingCustomMinorId(null);
+    setEditingCustomMinorName("");
+  };
+
   // Auto-save to localStorage whenever data changes
   useEffect(() => {
     const dataToSave = {
@@ -705,9 +915,17 @@ export default function App() {
       languageWaived,
       programSelections,
       customMajorRequirements,
+      customMajors,
+      customMinorRequirements,
+      customMinors,
+      primaryMajor,
+      secondaryMajor,
+      showSecondaryMajor,
+      selectedMinor,
+      showMinorPlanner,
     };
     saveToLocalStorage(dataToSave);
-  }, [terms, activeTab, startYear, yearLabels, languageWaived, programSelections, customMajorRequirements]);
+  }, [terms, activeTab, startYear, yearLabels, languageWaived, programSelections, customMajorRequirements, customMajors, customMinorRequirements, customMinors]);
 
   const updateSlot = (termId, slotIdx, updater) => {
     setTerms(prev =>
@@ -834,14 +1052,98 @@ export default function App() {
     label: yearLabels[y.id] || y.label
   }));
 
-const majorOptions = useMemo(() => {
-  const names = Object.keys(majorRequirements).sort((a, b) => a.localeCompare(b));
-  if (names.includes("Custom Major")) {
-    return ["Custom Major", ...names.filter(name => name !== "Custom Major")];
-  }
-  return names;
-}, []);
-  const programOptions = majorOptions;
+  const baseMajorNames = useMemo(() => {
+    const names = Object.keys(majorRequirements).sort((a, b) => a.localeCompare(b));
+    if (names.includes("Custom Major")) {
+      return ["Custom Major", ...names.filter(name => name !== "Custom Major")];
+    }
+    return names;
+  }, []);
+
+  const baseMajorOptions = useMemo(
+    () =>
+      baseMajorNames.map(name => ({
+        value: name,
+        label: name,
+        isCustom: name === "Custom Major",
+      })),
+    [baseMajorNames]
+  );
+
+  const customMajorOptions = useMemo(
+    () =>
+      customMajors.map(item => ({
+        value: createCustomMajorOptionValue(item.id),
+        label: `${item.name} (Custom)`,
+        isCustom: true,
+        name: item.name,
+      })),
+    [customMajors]
+  );
+
+  const majorOptions = useMemo(() => {
+    if (!customMajorOptions.length) return baseMajorOptions;
+    const options = [];
+    let inserted = false;
+    baseMajorOptions.forEach(option => {
+      options.push(option);
+      if (!inserted && option.value === "Custom Major") {
+        options.push(...customMajorOptions);
+        inserted = true;
+      }
+    });
+    if (!inserted) {
+      return [...customMajorOptions, ...options];
+    }
+    return options;
+  }, [baseMajorOptions, customMajorOptions]);
+
+  const baseMinorOptions = useMemo(
+    () => [{ value: "Custom Minor", label: "Custom Minor", isCustom: true }],
+    []
+  );
+
+  const customMinorOptions = useMemo(
+    () =>
+      customMinors.map(item => ({
+        value: createCustomMinorOptionValue(item.id),
+        label: `${item.name} (Custom Minor)`,
+        isCustom: true,
+        name: item.name,
+      })),
+    [customMinors]
+  );
+
+  const minorOptions = useMemo(() => {
+    if (!customMinorOptions.length) return baseMinorOptions;
+    return [...baseMinorOptions, ...customMinorOptions];
+  }, [baseMinorOptions, customMinorOptions]);
+
+  const MajorSelect = ({ value, onChange, placeholder = "Select a major" }) => (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="rounded border px-3 py-1 text-sm"
+    >
+      <option value="">{placeholder}</option>
+      {majorOptions.map(option => (
+        <option key={option.value} value={option.value}>{option.label}</option>
+      ))}
+    </select>
+  );
+
+  const MinorSelect = ({ value, onChange, placeholder = "Select a minor" }) => (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="rounded border px-3 py-1 text-sm"
+    >
+      <option value="">{placeholder}</option>
+      {minorOptions.map(option => (
+        <option key={option.value} value={option.value}>{option.label}</option>
+      ))}
+    </select>
+  );
 
   const programRequirementOptionsMap = useMemo(() => {
     const entries = programSelections.map(program => [
@@ -868,8 +1170,18 @@ const majorOptions = useMemo(() => {
       prev.map(program => {
         if (program.id !== id) return program;
         const updated = { ...program, [field]: value };
-        if (field === "type" && value === "None") {
-          updated.value = "";
+        if (field === "type") {
+          if (value === "None") {
+            updated.value = "";
+          } else if (value === "Minor") {
+            if (!minorOptions.some(option => option.value === updated.value)) {
+              updated.value = "";
+            }
+          } else {
+            if (!majorOptions.some(option => option.value === updated.value)) {
+              updated.value = "";
+            }
+          }
         }
         return updated;
       })
@@ -913,11 +1225,12 @@ const getCoursesForProgram = (programId) => {
   return allCourses;
 };
 
-const getMajorRelevantCourses = (majorName, allCourses, programSelections) => {
-  if (!majorName) return [];
-  const majorReq = majorRequirements[majorName];
+const getMajorRelevantCourses = (majorValue, allCourses, programSelections) => {
+  if (!majorValue) return [];
+  const normalizedKey = resolveMajorConfigKey(majorValue);
+  const majorReq = normalizedKey ? majorRequirements[normalizedKey] : null;
   if (!majorReq) return [];
-  const matchedPrograms = programSelections.filter(program => program.value === majorName);
+  const matchedPrograms = programSelections.filter(program => program.value === majorValue);
   const isCourseFlagged = (course) =>
     matchedPrograms.some(program => course.programs?.[program.id]);
   const flagged = matchedPrograms.length ? allCourses.filter(isCourseFlagged) : [];
@@ -949,7 +1262,8 @@ const getMajorRelevantCourses = (majorName, allCourses, programSelections) => {
 };
 
 const getMajorRequirementTarget = (majorName) => {
-  const config = majorRequirements[majorName];
+  const normalizedKey = resolveMajorConfigKey(majorName);
+  const config = normalizedKey ? majorRequirements[normalizedKey] : null;
   if (!config) return 0;
   if (config.unitTarget) return config.unitTarget;
   if (config.englishStructure?.totalRequired) return config.englishStructure.totalRequired;
@@ -1388,8 +1702,8 @@ const TotalUnitsCard = ({ stat, className = "" }) => {
                         disabled={program.type === "None"}
                       >
                         <option value="">Select program</option>
-                        {programOptions.map(name => (
-                          <option key={name} value={name}>{name}</option>
+                        {(program.type === "Minor" ? minorOptions : majorOptions).map(option => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
                         ))}
                       </select>
                     </div>
@@ -1972,7 +2286,7 @@ const TotalUnitsCard = ({ stat, className = "" }) => {
     );
   };
 
-const renderMASMajor = (majorReq, courses) => {
+const renderMASMajor = (majorReq, courses, majorValue, onChange) => {
   const {
     visualAnalysis,
     studioFoundation,
@@ -1989,15 +2303,7 @@ const renderMASMajor = (majorReq, courses) => {
         <div className="rounded-2xl border bg-white p-4">
           <div className="mb-3 flex items-center justify-between">
             <div className="text-sm font-semibold text-slate-900">Media Arts and Sciences Major</div>
-            <select
-              value={selectedMajor}
-              onChange={(e) => setSelectedMajor(e.target.value)}
-              className="rounded border px-3 py-1 text-sm"
-            >
-              {majorOptions.map(major => (
-                <option key={major} value={major}>{major}</option>
-              ))}
-            </select>
+            <MajorSelect value={majorValue} onChange={onChange} />
           </div>
 
           {renderMajorIntro(majorReq)}
@@ -2105,7 +2411,7 @@ const renderMASMajor = (majorReq, courses) => {
     );
 };
 
-const renderCSMajor = (majorReq, courses) => {
+const renderCSMajor = (majorReq, courses, majorValue, onChange) => {
   const progress = computeCSProgress(courses, majorReq.csStructure);
   const totalCore = progress.coreGroups.length;
   const completedCore = progress.coreGroups.filter(group => group.completed).length;
@@ -2117,15 +2423,7 @@ const renderCSMajor = (majorReq, courses) => {
       <div className="rounded-2xl border bg-white p-4">
         <div className="mb-3 flex items-center justify-between">
           <div className="text-sm font-semibold text-slate-900">Computer Science Major</div>
-          <select
-            value={selectedMajor}
-            onChange={(e) => setSelectedMajor(e.target.value)}
-            className="rounded border px-3 py-1 text-sm"
-          >
-            {majorOptions.map(major => (
-              <option key={major} value={major}>{major}</option>
-            ))}
-          </select>
+          <MajorSelect value={majorValue} onChange={onChange} />
         </div>
 
         {renderMajorIntro(majorReq)}
@@ -2206,7 +2504,7 @@ const renderCSMajor = (majorReq, courses) => {
   );
 };
 
-const renderBioMajor = (majorReq, courses) => {
+const renderBioMajor = (majorReq, courses, majorValue, onChange) => {
   const progress = computeBioProgress(courses, majorReq.bioStructure);
   const groupCompletion = [progress.groupCell, progress.groupSystems, progress.groupCommunity].filter(Boolean).length;
 
@@ -2215,16 +2513,7 @@ const renderBioMajor = (majorReq, courses) => {
       <div className="rounded-2xl border bg-white p-4">
         <div className="mb-3 flex items-center justify-between">
           <div className="text-sm font-semibold text-slate-900">Biological Sciences Major</div>
-          <select
-            value={selectedMajor}
-            onChange={(e) => setSelectedMajor(e.target.value)}
-            className="rounded border px-3 py-1 text-sm"
-          >
-            <option value="">Select a major</option>
-            {majorOptions.map(major => (
-              <option key={major} value={major}>{major}</option>
-            ))}
-          </select>
+          <MajorSelect value={majorValue} onChange={onChange} />
         </div>
 
         {renderMajorIntro(majorReq)}
@@ -2328,27 +2617,117 @@ const renderBioMajor = (majorReq, courses) => {
   );
 };
 
-const renderCustomMajor = () => {
+const renderCustomMajor = (majorValue, onChange, displayLabel = "Custom Major") => {
   const canAddRow = customMajorRequirements.length < MAX_CUSTOM_MAJOR_REQUIREMENTS;
+  const trimmedName = newCustomMajorName.trim();
+  const nameExists = !!trimmedName && customMajors.some(item => item.name.toLowerCase() === trimmedName.toLowerCase());
+  const canSaveCustomMajor = !!trimmedName && !nameExists;
 
   return (
     <div className="mt-4 space-y-4">
       <div className="rounded-2xl border bg-white p-4">
         <div className="mb-3 flex items-center justify-between">
-          <div className="text-sm font-semibold text-slate-900">Custom Major</div>
-          <select
-            value={selectedMajor}
-            onChange={(e) => setSelectedMajor(e.target.value)}
-            className="rounded border px-3 py-1 text-sm"
-          >
-            <option value="">Select a major</option>
-            {majorOptions.map(major => (
-              <option key={major} value={major}>{major}</option>
-            ))}
-          </select>
+          <div className="text-sm font-semibold text-slate-900">{displayLabel}</div>
+          <MajorSelect value={majorValue} onChange={onChange} />
         </div>
 
-        <div className="space-y-2">
+        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-3 py-3 text-xs text-slate-600">
+          <div className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+            Name this custom plan
+          </div>
+          <p className="mt-1">
+            Add a label to create a dedicated custom major entry in every dropdown.
+          </p>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <input
+              type="text"
+              value={newCustomMajorName}
+              onChange={(e) => setNewCustomMajorName(e.target.value)}
+              placeholder="Name your custom major"
+              className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              maxLength={60}
+            />
+            <button
+              type="button"
+              onClick={addCustomMajor}
+              disabled={!canSaveCustomMajor}
+              className={cx(
+                "rounded-full px-4 py-2 text-sm font-medium",
+                canSaveCustomMajor
+                  ? "bg-indigo-600 text-white hover:bg-indigo-500"
+                  : "bg-slate-200 text-slate-500 cursor-not-allowed"
+              )}
+            >
+              Add custom major
+            </button>
+          </div>
+          {nameExists && (
+            <div className="mt-1 text-[0.65rem] font-medium text-rose-600">
+              That name is already in your list.
+            </div>
+          )}
+          {customMajors.length > 0 && (
+            <div className="mt-3">
+              <div className="text-[0.65rem] uppercase tracking-wide text-slate-500">Your custom majors</div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {customMajors.map(major => (
+                  <div
+                    key={major.id}
+                    className="flex flex-wrap items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-[0.7rem] font-semibold text-slate-700"
+                  >
+                    {editingCustomMajorId === major.id ? (
+                      <>
+                        <input
+                          type="text"
+                          value={editingCustomMajorName}
+                          onChange={(e) => setEditingCustomMajorName(e.target.value)}
+                          className="rounded border border-slate-300 px-2 py-1 text-xs font-normal text-slate-800"
+                          maxLength={60}
+                        />
+                        <button
+                          type="button"
+                          onClick={saveEditingCustomMajor}
+                          className="rounded border border-green-300 px-2 py-0.5 text-[0.65rem] font-semibold text-green-700 hover:bg-green-50"
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelEditingCustomMajor}
+                          className="rounded border border-slate-300 px-2 py-0.5 text-[0.65rem] font-semibold text-slate-600 hover:bg-white"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span>{major.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => startEditingCustomMajor(major)}
+                          className="text-slate-400 transition hover:text-indigo-500"
+                          aria-label={`Edit ${major.name}`}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeCustomMajor(major.id)}
+                          className="text-slate-400 transition hover:text-rose-500"
+                          aria-label={`Remove ${major.name}`}
+                        >
+                          ×
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 space-y-2">
           {customMajorRequirements.map((req, idx) => (
             <div key={idx} className="flex items-center gap-2">
               <span className="w-6 text-right text-xs text-slate-500">{idx + 1}.</span>
@@ -2382,23 +2761,158 @@ const renderCustomMajor = () => {
   );
 };
 
-const renderMathMajor = (majorReq, courses) => {
+const renderCustomMinor = (minorValue, onChange, displayLabel = "Custom Minor") => {
+  const canAddRow = customMinorRequirements.length < MAX_CUSTOM_MINOR_REQUIREMENTS;
+  const trimmedName = newCustomMinorName.trim();
+  const nameExists = !!trimmedName && customMinors.some(item => item.name.toLowerCase() === trimmedName.toLowerCase());
+  const canSaveCustomMinor = !!trimmedName && !nameExists;
+
+  return (
+    <div className="mt-4 space-y-4">
+      <div className="rounded-2xl border bg-white p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="text-sm font-semibold text-slate-900">{displayLabel}</div>
+          <MinorSelect value={minorValue} onChange={onChange} />
+        </div>
+
+        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-3 py-3 text-xs text-slate-600">
+          <div className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+            Name this custom minor
+          </div>
+          <p className="mt-1">
+            Add a label to create a custom minor entry.
+          </p>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <input
+              type="text"
+              value={newCustomMinorName}
+              onChange={(e) => setNewCustomMinorName(e.target.value)}
+              placeholder="Name your custom minor"
+              className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              maxLength={60}
+            />
+            <button
+              type="button"
+              onClick={addCustomMinor}
+              disabled={!canSaveCustomMinor}
+              className={cx(
+                "rounded-full px-4 py-2 text-sm font-medium",
+                canSaveCustomMinor
+                  ? "bg-indigo-600 text-white hover:bg-indigo-500"
+                  : "bg-slate-200 text-slate-500 cursor-not-allowed"
+              )}
+            >
+              Add custom minor
+            </button>
+          </div>
+          {nameExists && (
+            <div className="mt-1 text-[0.65rem] font-medium text-rose-600">
+              That name is already in your list.
+            </div>
+          )}
+          {customMinors.length > 0 && (
+            <div className="mt-3">
+              <div className="text-[0.65rem] uppercase tracking-wide text-slate-500">Your custom minors</div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {customMinors.map(minor => (
+                  <div
+                    key={minor.id}
+                    className="flex flex-wrap items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-[0.7rem] font-semibold text-slate-700"
+                  >
+                    {editingCustomMinorId === minor.id ? (
+                      <>
+                        <input
+                          type="text"
+                          value={editingCustomMinorName}
+                          onChange={(e) => setEditingCustomMinorName(e.target.value)}
+                          className="rounded border border-slate-300 px-2 py-1 text-xs font-normal text-slate-800"
+                          maxLength={60}
+                        />
+                        <button
+                          type="button"
+                          onClick={saveEditingCustomMinor}
+                          className="rounded border border-green-300 px-2 py-0.5 text-[0.65rem] font-semibold text-green-700 hover:bg-green-50"
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelEditingCustomMinor}
+                          className="rounded border border-slate-300 px-2 py-0.5 text-[0.65rem] font-semibold text-slate-600 hover:bg-white"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span>{minor.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => startEditingCustomMinor(minor)}
+                          className="text-slate-400 transition hover:text-indigo-500"
+                          aria-label={`Edit ${minor.name}`}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeCustomMinor(minor.id)}
+                          className="text-slate-400 transition hover:text-rose-500"
+                          aria-label={`Remove ${minor.name}`}
+                        >
+                          ×
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 space-y-2">
+          {customMinorRequirements.map((req, idx) => (
+            <div key={idx} className="flex items-center gap-2">
+              <span className="w-6 text-right text-xs text-slate-500">{idx + 1}.</span>
+              <input
+                type="text"
+                value={req}
+                onChange={(e) => updateCustomMinorRequirement(idx, e.target.value)}
+                placeholder="Enter course or requirement name"
+                className="flex-1 rounded-lg border px-3 py-2 text-sm"
+                maxLength={120}
+              />
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 flex justify-end">
+          <button
+            type="button"
+            onClick={addCustomMinorRequirementRow}
+            disabled={!canAddRow}
+            className={cx(
+              "rounded-full px-4 py-1.5 text-sm font-medium",
+              canAddRow ? "border border-slate-300 text-slate-700 hover:bg-slate-50" : "border border-slate-200 text-slate-400 cursor-not-allowed"
+            )}
+          >
+            {canAddRow ? "Add requirement" : "Max 12 rows reached"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const renderMathMajor = (majorReq, courses, majorValue, onChange) => {
   const progress = computeMathProgress(courses, majorReq.mathStructure);
   return (
     <div className="mt-4 space-y-4">
       <div className="rounded-2xl border bg-white p-4">
         <div className="mb-3 flex items-center justify-between">
           <div className="text-sm font-semibold text-slate-900">Mathematics Major</div>
-          <select
-            value={selectedMajor}
-            onChange={(e) => setSelectedMajor(e.target.value)}
-            className="rounded border px-3 py-1 text-sm"
-          >
-            <option value="">Select a major</option>
-            {majorOptions.map(major => (
-              <option key={major} value={major}>{major}</option>
-            ))}
-          </select>
+          <MajorSelect value={majorValue} onChange={onChange} />
         </div>
 
         {renderMajorIntro(majorReq)}
@@ -2488,23 +3002,14 @@ const renderMathMajor = (majorReq, courses) => {
   );
 };
 
-const renderEconMajor = (majorReq, courses) => {
+const renderEconMajor = (majorReq, courses, majorValue, onChange) => {
   const progress = computeEconProgress(courses, majorReq.econStructure);
   return (
     <div className="mt-4 space-y-4">
       <div className="rounded-2xl border bg-white p-4">
         <div className="mb-3 flex items-center justify-between">
           <div className="text-sm font-semibold text-slate-900">Economics Major</div>
-          <select
-            value={selectedMajor}
-            onChange={(e) => setSelectedMajor(e.target.value)}
-            className="rounded border px-3 py-1 text-sm"
-          >
-            <option value="">Select a major</option>
-            {majorOptions.map(major => (
-              <option key={major} value={major}>{major}</option>
-            ))}
-          </select>
+          <MajorSelect value={majorValue} onChange={onChange} />
         </div>
 
         {renderMajorIntro(majorReq)}
@@ -2606,7 +3111,7 @@ const renderEconMajor = (majorReq, courses) => {
   );
 };
 
-const renderEnglishMajor = (majorReq, relevantCourses) => {
+const renderEnglishMajor = (majorReq, relevantCourses, majorValue, onChange) => {
   const struct = majorReq.englishStructure || {};
   const progress = computeEnglishProgress(relevantCourses, struct);
   return (
@@ -2614,16 +3119,7 @@ const renderEnglishMajor = (majorReq, relevantCourses) => {
       <div className="rounded-2xl border bg-white p-4">
         <div className="mb-3 flex items-center justify-between">
           <div className="text-sm font-semibold text-slate-900">{majorReq.description ? "English Major" : "English Programs"}</div>
-          <select
-            value={selectedMajor}
-            onChange={(e) => setSelectedMajor(e.target.value)}
-            className="rounded border px-3 py-1 text-sm"
-          >
-            <option value="">Select a major</option>
-            {majorOptions.map(major => (
-              <option key={major} value={major}>{major}</option>
-            ))}
-          </select>
+          <MajorSelect value={majorValue} onChange={onChange} />
         </div>
 
         {renderMajorIntro(majorReq)}
@@ -2669,7 +3165,7 @@ const renderEnglishMajor = (majorReq, relevantCourses) => {
   );
 };
 
-const renderAnthroMajor = (majorReq, courses) => {
+const renderAnthroMajor = (majorReq, courses, majorValue, onChange) => {
   const progress = computeAnthroProgress(courses, majorReq.anthroStructure, false);
 
   return (
@@ -2677,16 +3173,7 @@ const renderAnthroMajor = (majorReq, courses) => {
       <div className="rounded-2xl border bg-white p-4">
         <div className="mb-3 flex items-center justify-between">
           <div className="text-sm font-semibold text-slate-900">Anthropology Major</div>
-          <select
-            value={selectedMajor}
-            onChange={(e) => setSelectedMajor(e.target.value)}
-            className="rounded border px-3 py-1 text-sm"
-          >
-            <option value="">Select a major</option>
-            {majorOptions.map(major => (
-              <option key={major} value={major}>{major}</option>
-            ))}
-          </select>
+          <MajorSelect value={majorValue} onChange={onChange} />
         </div>
 
         {renderMajorIntro(majorReq)}
@@ -2756,7 +3243,7 @@ const renderAnthroMajor = (majorReq, courses) => {
   );
 };
 
-const renderAfrMajor = (majorReq, courses) => {
+const renderAfrMajor = (majorReq, courses, majorValue, onChange) => {
   const struct = majorReq.afrStructure || {};
   const progress = computeAfrProgress(courses, struct);
   const introLabel = struct.introOptions ? struct.introOptions.join(" / ") : "AFR 105";
@@ -2767,16 +3254,7 @@ const renderAfrMajor = (majorReq, courses) => {
       <div className="rounded-2xl border bg-white p-4">
         <div className="mb-3 flex items-center justify-between">
           <div className="text-sm font-semibold text-slate-900">Africana Studies Major</div>
-          <select
-            value={selectedMajor}
-            onChange={(e) => setSelectedMajor(e.target.value)}
-            className="rounded border px-3 py-1 text-sm"
-          >
-            <option value="">Select a major</option>
-            {Object.keys(majorRequirements).map(major => (
-              <option key={major} value={major}>{major}</option>
-            ))}
-          </select>
+          <MajorSelect value={majorValue} onChange={onChange} />
         </div>
 
         {renderMajorIntro(majorReq)}
@@ -2820,7 +3298,7 @@ const renderAfrMajor = (majorReq, courses) => {
   );
 };
 
-const renderAmstMajor = (majorReq, courses) => {
+const renderAmstMajor = (majorReq, courses, majorValue, onChange) => {
   const struct = majorReq.amerStructure || {};
   const progress = computeAmstProgress(courses, struct);
 
@@ -2829,16 +3307,7 @@ const renderAmstMajor = (majorReq, courses) => {
       <div className="rounded-2xl border bg-white p-4">
         <div className="mb-3 flex items-center justify-between">
           <div className="text-sm font-semibold text-slate-900">American Studies Major</div>
-          <select
-            value={selectedMajor}
-            onChange={(e) => setSelectedMajor(e.target.value)}
-            className="rounded border px-3 py-1 text-sm"
-          >
-            <option value="">Select a major</option>
-            {Object.keys(majorRequirements).map(major => (
-              <option key={major} value={major}>{major}</option>
-            ))}
-          </select>
+          <MajorSelect value={majorValue} onChange={onChange} />
         </div>
 
         {renderMajorIntro(majorReq)}
@@ -2890,97 +3359,77 @@ const renderAmstMajor = (majorReq, courses) => {
   );
 };
 
-  const renderMajor = () => {
-    const majorReq = selectedMajor ? majorRequirements[selectedMajor] : null;
-    if (!majorReq) {
-      return (
-        <div className="mt-4 rounded-2xl border bg-white p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="text-sm font-semibold text-slate-900">Major Requirements</div>
-            <select
-              value={selectedMajor}
-              onChange={(e) => setSelectedMajor(e.target.value)}
-              className="rounded border px-3 py-1 text-sm"
-            >
-              <option value="">Select a major</option>
-              {majorOptions.map(major => (
-                <option key={major} value={major}>{major}</option>
-              ))}
-            </select>
+const renderMajorPlannerCard = (majorValue, setMajorValue, cardTitle = "Major Planner") => {
+  const normalizedKey = resolveMajorConfigKey(majorValue);
+  const majorReq = normalizedKey ? majorRequirements[normalizedKey] : null;
+  const selectedOption = majorOptions.find(option => option.value === majorValue);
+  const selectedLabel = selectedOption?.label || majorValue;
+  const placeholder = majorValue
+    ? `${selectedLabel || "This major"} is not configured yet.`
+    : "Choose a major from the dropdown to see its checklist.";
+
+  if (!majorReq) {
+    return (
+      <div className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{cardTitle}</div>
+            <p className="mt-1 text-sm text-slate-600">{placeholder}</p>
           </div>
-          <p className="text-sm text-slate-600">
-            {selectedMajor ? `${selectedMajor} is not configured yet.` : "Choose a major from the dropdown to see its checklist."}
-          </p>
+          <MajorSelect value={majorValue} onChange={setMajorValue} />
         </div>
-      );
-    }
+      </div>
+    );
+  }
 
-    const relevantCourses = getMajorRelevantCourses(selectedMajor, allCourses, programSelections);
+  const relevantCourses = getMajorRelevantCourses(majorValue, allCourses, programSelections);
+  let content = null;
 
-    if (selectedMajor === "Media Arts and Sciences") {
-      return renderMASMajor(majorReq, relevantCourses);
-    }
-    if (selectedMajor === "Computer Science" && majorReq.csStructure) {
-      return renderCSMajor(majorReq, relevantCourses);
-    }
-    if (selectedMajor === "Biological Sciences" && majorReq.bioStructure) {
-      return renderBioMajor(majorReq, relevantCourses);
-    }
-    if (selectedMajor === "Custom Major") {
-      return renderCustomMajor();
-    }
-    if (selectedMajor === "Mathematics" && majorReq.mathStructure) {
-      return renderMathMajor(majorReq, relevantCourses);
-    }
-    if (selectedMajor === "Economics" && majorReq.econStructure) {
-      return renderEconMajor(majorReq, relevantCourses);
-    }
-    if ((selectedMajor === "English" || selectedMajor === "English and Creative Writing") && majorReq.englishStructure) {
-      return renderEnglishMajor(majorReq, relevantCourses);
-    }
-    if (selectedMajor === "Africana Studies" && majorReq.afrStructure) {
-      return renderAfrMajor(majorReq, relevantCourses);
-    }
-    if (selectedMajor === "American Studies" && majorReq.amerStructure) {
-      return renderAmstMajor(majorReq, relevantCourses);
-    }
-    if (selectedMajor === "Anthropology" && majorReq.anthroStructure) {
-      return renderAnthroMajor(majorReq, relevantCourses);
-    }
-
-    const completedRequired = majorReq.requiredCourses ? majorReq.requiredCourses.filter(req => 
+  if (majorValue === "Media Arts and Sciences") {
+    content = renderMASMajor(majorReq, relevantCourses, majorValue, setMajorValue);
+  } else if (majorValue === "Computer Science" && majorReq.csStructure) {
+    content = renderCSMajor(majorReq, relevantCourses, majorValue, setMajorValue);
+  } else if (majorValue === "Biological Sciences" && majorReq.bioStructure) {
+    content = renderBioMajor(majorReq, relevantCourses, majorValue, setMajorValue);
+  } else if (normalizedKey === "Custom Major") {
+    content = renderCustomMajor(majorValue, setMajorValue, selectedLabel || "Custom Major");
+  } else if (majorValue === "Mathematics" && majorReq.mathStructure) {
+    content = renderMathMajor(majorReq, relevantCourses, majorValue, setMajorValue);
+  } else if (majorValue === "Economics" && majorReq.econStructure) {
+    content = renderEconMajor(majorReq, relevantCourses, majorValue, setMajorValue);
+  } else if ((majorValue === "English" || majorValue === "English and Creative Writing") && majorReq.englishStructure) {
+    content = renderEnglishMajor(majorReq, relevantCourses, majorValue, setMajorValue);
+  } else if (majorValue === "Africana Studies" && majorReq.afrStructure) {
+    content = renderAfrMajor(majorReq, relevantCourses, majorValue, setMajorValue);
+  } else if (majorValue === "American Studies" && majorReq.amerStructure) {
+    content = renderAmstMajor(majorReq, relevantCourses, majorValue, setMajorValue);
+  } else if (majorValue === "Anthropology" && majorReq.anthroStructure) {
+    content = renderAnthroMajor(majorReq, relevantCourses, majorValue, setMajorValue);
+  } else {
+    const completedRequired = majorReq.requiredCourses ? majorReq.requiredCourses.filter(req =>
       relevantCourses.some(course => codesMatch(course.code, req))
     ) : [];
 
     const majorElectives = relevantCourses.filter(course => {
       const dept = detectDepartmentFromCode(course.code);
-      const majorDept = selectedMajor === "Computer Science" ? "Computer Science" : 
-                       selectedMajor === "Mathematics" ? "Mathematics" :
-                       selectedMajor === "Economics" ? "Economics" : null;
+      const majorDept = majorValue === "Computer Science" ? "Computer Science" :
+                       majorValue === "Mathematics" ? "Mathematics" :
+                       majorValue === "Economics" ? "Economics" : null;
       return dept === majorDept && !(majorReq.requiredCourses || []).some(req => codesMatch(course.code, req)) && course.level >= 200;
     });
 
-    const completedMath = majorReq.mathRequirements ? 
-      majorReq.mathRequirements.filter(req => 
+    const completedMath = majorReq.mathRequirements ?
+      majorReq.mathRequirements.filter(req =>
         relevantCourses.some(course => codesMatch(course.code, req))
       ) : [];
 
-    return (
+    content = (
       <div className="mt-4 space-y-4">
         <div className="rounded-2xl border bg-white p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="text-sm font-semibold text-slate-900">Major Requirements</div>
-          <select
-            value={selectedMajor}
-            onChange={(e) => setSelectedMajor(e.target.value)}
-            className="rounded border px-3 py-1 text-sm"
-          >
-            <option value="">Select a major</option>
-            {majorOptions.map(major => (
-              <option key={major} value={major}>{major}</option>
-            ))}
-          </select>
-        </div>
+          <div className="mb-3 flex items-center justify-between">
+            <div className="text-sm font-semibold text-slate-900">Major Requirements</div>
+            <MajorSelect value={majorValue} onChange={setMajorValue} />
+          </div>
 
           {renderMajorIntro(majorReq)}
 
@@ -2990,16 +3439,16 @@ const renderAmstMajor = (majorReq, courses) => {
                 <div className="mb-2 text-sm font-medium">Required Courses</div>
                 <div className="space-y-1 text-xs">
                   {majorReq.requiredCourses.map(course => (
-                  <div key={course} className={cx(
-                    "flex items-center justify-between p-2 rounded",
-                    completedRequired.includes(course) 
-                      ? "bg-green-50 text-green-700" 
-                      : "bg-gray-50 text-gray-600"
-                  )}>
-                    <span>{course}</span>
-                    {completedRequired.includes(course) && <span>✓</span>}
-                  </div>
-                ))}
+                    <div key={course} className={cx(
+                      "flex items-center justify-between p-2 rounded",
+                      completedRequired.includes(course)
+                        ? "bg-green-50 text-green-700"
+                        : "bg-gray-50 text-gray-600"
+                    )}>
+                      <span>{course}</span>
+                      {completedRequired.includes(course) && <span>✓</span>}
+                    </div>
+                  ))}
                 </div>
                 <div className="mt-2 text-xs text-slate-500">
                   {completedRequired.length}/{majorReq.requiredCourses.length} completed
@@ -3028,8 +3477,8 @@ const renderAmstMajor = (majorReq, courses) => {
                   {majorReq.mathRequirements.map(course => (
                     <div key={course} className={cx(
                       "flex items-center justify-between p-2 rounded",
-                      completedMath.includes(course) 
-                        ? "bg-green-50 text-green-700" 
+                      completedMath.includes(course)
+                        ? "bg-green-50 text-green-700"
                         : "bg-gray-50 text-gray-600"
                     )}>
                       <span>{course}</span>
@@ -3046,7 +3495,111 @@ const renderAmstMajor = (majorReq, courses) => {
         </div>
       </div>
     );
-  };
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{cardTitle}</div>
+      {content}
+    </div>
+  );
+};
+
+const renderMinorPlannerCard = () => {
+  const normalizedMinorKey = resolveMinorConfigKey(selectedMinor);
+  const selectedMinorOption = minorOptions.find(option => option.value === selectedMinor);
+  const selectedMinorLabel = selectedMinorOption?.label || selectedMinor;
+
+  if (!selectedMinor) {
+    return (
+      <div className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Minor Planner</div>
+            <p className="mt-1 text-sm text-slate-600">Choose a minor from the dropdown to start planning.</p>
+          </div>
+          <MinorSelect value={selectedMinor} onChange={setSelectedMinor} />
+        </div>
+      </div>
+    );
+  }
+
+  if (normalizedMinorKey === "Custom Minor") {
+    return renderCustomMinor(selectedMinor, setSelectedMinor, selectedMinorLabel || "Custom Minor");
+  }
+
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="text-sm font-semibold text-slate-900">{selectedMinorLabel || "Minor Planner"}</div>
+        <MinorSelect value={selectedMinor} onChange={setSelectedMinor} />
+      </div>
+      <p className="text-sm text-slate-600">
+        This minor isn't configured yet, but you can still track it in your planner using custom notes.
+      </p>
+    </div>
+  );
+};
+
+const renderMajor = () => {
+  return (
+    <div className="mt-4 space-y-6">
+      <div className="space-y-6">
+        {renderMajorPlannerCard(primaryMajor, setPrimaryMajor, "Primary Major")}
+
+        {showSecondaryMajor ? (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setSecondaryMajor("");
+                setShowSecondaryMajor(false);
+              }}
+              className="absolute right-4 top-4 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow hover:bg-rose-50 hover:text-rose-600"
+            >
+              Remove
+            </button>
+            {renderMajorPlannerCard(secondaryMajor, setSecondaryMajor, "Second Major")}
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowSecondaryMajor(true)}
+            className="w-full rounded-3xl border-2 border-dashed border-slate-300 bg-white/60 px-4 py-3 text-sm font-semibold text-slate-600 hover:border-indigo-300 hover:text-indigo-600"
+          >
+            + Add a second major viewer
+          </button>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        {showMinorPlanner ? (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedMinor("");
+                setShowMinorPlanner(false);
+              }}
+              className="absolute right-4 top-4 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow hover:bg-rose-50 hover:text-rose-600"
+            >
+              Remove
+            </button>
+            {renderMinorPlannerCard()}
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowMinorPlanner(true)}
+            className="w-full rounded-3xl border-2 border-dashed border-slate-300 bg-white/60 px-4 py-3 text-sm font-semibold text-slate-600 hover:border-indigo-300 hover:text-indigo-600"
+          >
+            + Add minor planner
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
 
   return (
     <div className="mx-auto max-w-6xl p-6">
