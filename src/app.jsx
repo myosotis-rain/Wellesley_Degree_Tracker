@@ -1649,7 +1649,7 @@ const getTotalUnitsStat = (majorName, courses = []) => {
                   {!fall && (
                     <button
                       onClick={() => addTerm(y.id, 'Fall')}
-                      className="rounded bg-amber-100 px-2 py-1 text-amber-700 hover:bg-amber-200"
+                      className="rounded px-2 py-1 text-slate-600 bg-slate-100 hover:bg-slate-200"
                     >
                       + Fall
                     </button>
@@ -1657,7 +1657,7 @@ const getTotalUnitsStat = (majorName, courses = []) => {
                   {!spring && (
                     <button
                       onClick={() => addTerm(y.id, 'Spring')}
-                      className="rounded bg-emerald-100 px-2 py-1 text-emerald-700 hover:bg-emerald-200"
+                      className="rounded px-2 py-1 text-slate-600 bg-slate-100 hover:bg-slate-200"
                     >
                       + Spring
                     </button>
