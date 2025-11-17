@@ -31,7 +31,7 @@ const TABS = [
   { id: "major", label: "Major / Minor" },
 ];
 
-const PROGRAM_TYPE_OPTIONS = ["Major", "Second Major", "Minor", "None"];
+const PROGRAM_TYPE_OPTIONS = ["Major", "Minor", "None"];
 
 const DEFAULT_PROGRAM_SELECTIONS = [
   { id: "programA", label: "Program 1", type: "Major", value: "", experienceComplete: false },
@@ -123,7 +123,10 @@ const ensureProgramSelections = (saved) => {
   if (!Array.isArray(saved)) return DEFAULT_PROGRAM_SELECTIONS;
   return DEFAULT_PROGRAM_SELECTIONS.map(template => {
     const match = saved.find(item => item.id === template.id);
-    return match ? { ...template, ...match } : template;
+    if (!match) return template;
+    const rawType = match.type === "Second Major" ? "Major" : match.type;
+    const normalizedType = PROGRAM_TYPE_OPTIONS.includes(rawType) ? rawType : template.type;
+    return { ...template, ...match, type: normalizedType };
   });
 };
 
@@ -944,33 +947,33 @@ export default function App() {
   }, [terms, activeTab, startYear, yearLabels, languageWaived, programSelections, customMajorRequirements, customMajors, customMinorRequirements, customMinors, primaryMajor, secondaryMajor, showSecondaryMajor, selectedMinor, showMinorPlanner, currentTermId]);
 
   useEffect(() => {
-    const primaryProgram = programSelections.find(program => program.type === "Major") || null;
-    const secondaryProgram = programSelections.find(program => program.type === "Second Major") || null;
-    const minorProgram = programSelections.find(program => program.type === "Minor") || null;
+    const primaryProgram = programSelections.find(program => program.id === "programA") || null;
+    const secondaryProgram = programSelections.find(program => program.id === "programB") || null;
 
-    const nextPrimary = primaryProgram ? primaryProgram.value || "" : "";
+    const nextPrimary = primaryProgram?.type === "Major" ? primaryProgram.value || "" : "";
     if (primaryMajor !== nextPrimary) {
       setPrimaryMajor(nextPrimary);
     }
 
-    if (secondaryProgram) {
+    if (secondaryProgram?.type === "Major") {
       if (!showSecondaryMajor) setShowSecondaryMajor(true);
+      if (showMinorPlanner) setShowMinorPlanner(false);
       const nextSecondary = secondaryProgram.value || "";
       if (secondaryMajor !== nextSecondary) {
         setSecondaryMajor(nextSecondary);
       }
-    } else {
-      if (showSecondaryMajor) setShowSecondaryMajor(false);
-      if (secondaryMajor) setSecondaryMajor("");
-    }
-
-    if (minorProgram) {
+      if (selectedMinor) setSelectedMinor("");
+    } else if (secondaryProgram?.type === "Minor") {
       if (!showMinorPlanner) setShowMinorPlanner(true);
-      const nextMinor = minorProgram.value || "";
+      if (showSecondaryMajor) setShowSecondaryMajor(false);
+      const nextMinor = secondaryProgram.value || "";
       if (selectedMinor !== nextMinor) {
         setSelectedMinor(nextMinor);
       }
+      if (secondaryMajor) setSecondaryMajor("");
     } else {
+      if (showSecondaryMajor) setShowSecondaryMajor(false);
+      if (secondaryMajor) setSecondaryMajor("");
       if (showMinorPlanner) setShowMinorPlanner(false);
       if (selectedMinor) setSelectedMinor("");
     }
@@ -1002,7 +1005,7 @@ export default function App() {
 
       if (showSecondaryMajor) {
         assignSlot(1, {
-          type: "Second Major",
+          type: "Major",
           value: secondaryMajor || "",
         });
       } else if (showMinorPlanner) {
@@ -1608,27 +1611,96 @@ const getTotalUnitsStat = (majorName, courses = []) => {
       termStatuses[id] = status;
     });
 
+    const secondaryMode = showSecondaryMajor ? "Major" : showMinorPlanner ? "Minor" : "None";
+    const handleSecondaryModeChange = (mode) => {
+      if (mode === "Major") {
+        setShowSecondaryMajor(true);
+        setShowMinorPlanner(false);
+      } else if (mode === "Minor") {
+        setShowSecondaryMajor(false);
+        setShowMinorPlanner(true);
+      } else {
+        setShowSecondaryMajor(false);
+        setShowMinorPlanner(false);
+      }
+    };
+
     return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
       <div className="space-y-4">
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-white p-3 text-sm">
-          <label className="font-medium text-slate-700" htmlFor="start-year-input">Set College Start Year:</label>
-          <input
-            id="start-year-input"
-            type="number"
-            value={startYear}
-            onChange={(e) => updateStartYear(parseInt(e.target.value, 10))}
-            className="w-24 rounded border px-2 py-1"
-            min="2020"
-            max="2030"
-          />
-          <button
-            type="button"
-            onClick={autoFillYears}
-            className="rounded-lg border border-indigo-200 bg-white px-3 py-1 font-medium text-slate-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50"
-          >
-            Confirm
-          </button>
+        <div className="rounded-lg border bg-white px-3 py-2 text-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="font-medium text-slate-700 whitespace-nowrap" htmlFor="start-year-input">
+              Set College Start Year:
+            </label>
+            <input
+              id="start-year-input"
+              type="number"
+              value={startYear}
+              onChange={(e) => updateStartYear(parseInt(e.target.value, 10))}
+              className="w-20 rounded border px-2 py-1"
+              min="2020"
+              max="2030"
+            />
+            <button
+              type="button"
+              onClick={autoFillYears}
+              className="rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:border-indigo-300 hover:bg-indigo-50"
+            >
+              Confirm
+            </button>
+          </div>
+          <div className="mt-2 border-t border-slate-100 pt-2">
+            <div className="flex flex-wrap gap-3 pb-1">
+              <div className="flex items-center gap-1.5 whitespace-nowrap">
+                <span className="text-[0.75rem] font-semibold uppercase tracking-wide text-slate-500">
+                  Program 1
+                </span>
+                <select
+                  className="min-w-[10rem] rounded border px-2 py-1 text-sm"
+                  value={primaryMajor}
+                  onChange={(e) => setPrimaryMajor(e.target.value)}
+                >
+                  <option value="">Select</option>
+                  {majorOptions.map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-1.5 whitespace-nowrap">
+                <span className="text-[0.75rem] font-semibold uppercase tracking-wide text-slate-500">
+                  Program 2
+                </span>
+                <select
+                  className="w-20 rounded border px-2 py-1 text-sm"
+                  value={secondaryMode}
+                  onChange={(e) => handleSecondaryModeChange(e.target.value)}
+                >
+                  <option value="None">None</option>
+                  <option value="Major">Major</option>
+                  <option value="Minor">Minor</option>
+                </select>
+                {secondaryMode !== "None" && (
+                  <select
+                    className="min-w-[10rem] rounded border px-2 py-1 text-sm"
+                    value={secondaryMode === "Major" ? secondaryMajor : selectedMinor}
+                    onChange={(e) => {
+                      if (secondaryMode === "Major") {
+                        setSecondaryMajor(e.target.value);
+                      } else {
+                        setSelectedMinor(e.target.value);
+                      }
+                    }}
+                  >
+                    <option value="">Select</option>
+                    {(secondaryMode === "Major" ? majorOptions : minorOptions).map(option => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
 
         {years.map(y => {
@@ -3707,7 +3779,7 @@ const renderMajor = () => {
         {renderMajorPlannerCard(primaryMajor, setPrimaryMajor, "Primary Major")}
 
         {showSecondaryMajor ? (
-          renderMajorPlannerCard(secondaryMajor, setSecondaryMajor, "Second Major", {
+          renderMajorPlannerCard(secondaryMajor, setSecondaryMajor, "Additional Major", {
             onRemove: () => {
               setSecondaryMajor("");
               setShowSecondaryMajor(false);
@@ -3719,7 +3791,7 @@ const renderMajor = () => {
             onClick={() => setShowSecondaryMajor(true)}
             className="w-full rounded-3xl border-2 border-dashed border-slate-300 bg-white/60 px-4 py-3 text-sm font-semibold text-slate-600 hover:border-indigo-300 hover:text-indigo-600"
           >
-            + Add a second major viewer
+            + Add another major viewer
           </button>
         )}
       </div>
