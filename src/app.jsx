@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   distributionRequirements,
   generalRequirements,
   internalRequirements,
   majorRequirements,
   seedRequirements,
+  subjectOptions,
 } from "./data.js";
 import {
   clamp01,
@@ -33,9 +34,21 @@ const TABS = [
 const PROGRAM_TYPE_OPTIONS = ["Major", "Second Major", "Minor", "None"];
 
 const DEFAULT_PROGRAM_SELECTIONS = [
-  { id: "programA", label: "Program 1", type: "None", value: "", experienceComplete: false },
+  { id: "programA", label: "Program 1", type: "Major", value: "", experienceComplete: false },
   { id: "programB", label: "Program 2", type: "None", value: "", experienceComplete: false },
 ];
+
+const DETAILED_MAJOR_VALUES = new Set([
+  "Media Arts and Sciences",
+  "Computer Science",
+  "Biological Sciences",
+  "Mathematics",
+  "Economics",
+  "English",
+  "Africana Studies",
+  "American Studies",
+  "Anthropology",
+]);
 
 const MAX_CUSTOM_MAJOR_REQUIREMENTS = 15;
 const DEFAULT_CUSTOM_MAJOR_COUNT = 9;
@@ -44,6 +57,7 @@ const CUSTOM_MINOR_VALUE_PREFIX = "custom-minor:";
 const MIN_CUSTOM_MINOR_REQUIREMENTS = 6;
 const MAX_CUSTOM_MINOR_REQUIREMENTS = 12;
 const DEFAULT_CUSTOM_MINOR_COUNT = 6;
+const SUBJECT_NAME_SET = new Set(subjectOptions);
 
 const isCustomMajorValue = (value = "") => {
   if (typeof value !== "string") return false;
@@ -736,7 +750,7 @@ export default function App() {
     const missing = DEFAULT_CUSTOM_MINOR_COUNT - savedList.length;
     return [...savedList, ...Array(Math.max(missing, 0)).fill("")];
   };
-  const [terms, setTerms] = useState(() => savedData?.terms || getDefaultTerms(initialStartYear));
+  const [terms, setTerms] = useState(() => savedData?.terms || []);
   const [activeTermId, setActiveTermId] = useState(null);
   const [activeTab, setActiveTab] = useState(savedData?.activeTab || "plan");
   const [startYear, setStartYear] = useState(initialStartYear);
@@ -762,6 +776,7 @@ export default function App() {
   const [editingCustomMajorName, setEditingCustomMajorName] = useState("");
   const [editingCustomMinorId, setEditingCustomMinorId] = useState(null);
   const [editingCustomMinorName, setEditingCustomMinorName] = useState("");
+  const [currentTermId, setCurrentTermId] = useState(savedData?.currentTermId || "");
 
   const termById = (id) => terms.find(t => t.id === id) || null;
 
@@ -923,9 +938,88 @@ export default function App() {
       showSecondaryMajor,
       selectedMinor,
       showMinorPlanner,
+      currentTermId,
     };
     saveToLocalStorage(dataToSave);
-  }, [terms, activeTab, startYear, yearLabels, languageWaived, programSelections, customMajorRequirements, customMajors, customMinorRequirements, customMinors]);
+  }, [terms, activeTab, startYear, yearLabels, languageWaived, programSelections, customMajorRequirements, customMajors, customMinorRequirements, customMinors, primaryMajor, secondaryMajor, showSecondaryMajor, selectedMinor, showMinorPlanner, currentTermId]);
+
+  useEffect(() => {
+    const primaryProgram = programSelections.find(program => program.type === "Major") || null;
+    const secondaryProgram = programSelections.find(program => program.type === "Second Major") || null;
+    const minorProgram = programSelections.find(program => program.type === "Minor") || null;
+
+    const nextPrimary = primaryProgram ? primaryProgram.value || "" : "";
+    if (primaryMajor !== nextPrimary) {
+      setPrimaryMajor(nextPrimary);
+    }
+
+    if (secondaryProgram) {
+      if (!showSecondaryMajor) setShowSecondaryMajor(true);
+      const nextSecondary = secondaryProgram.value || "";
+      if (secondaryMajor !== nextSecondary) {
+        setSecondaryMajor(nextSecondary);
+      }
+    } else {
+      if (showSecondaryMajor) setShowSecondaryMajor(false);
+      if (secondaryMajor) setSecondaryMajor("");
+    }
+
+    if (minorProgram) {
+      if (!showMinorPlanner) setShowMinorPlanner(true);
+      const nextMinor = minorProgram.value || "";
+      if (selectedMinor !== nextMinor) {
+        setSelectedMinor(nextMinor);
+      }
+    } else {
+      if (showMinorPlanner) setShowMinorPlanner(false);
+      if (selectedMinor) setSelectedMinor("");
+    }
+  }, [programSelections]);
+
+  useEffect(() => {
+    setProgramSelections(prev => {
+      if (!Array.isArray(prev) || prev.length === 0) return prev;
+      const next = prev.map(entry => ({ ...entry }));
+      let changed = false;
+
+      const assignSlot = (index, updates) => {
+        const template = DEFAULT_PROGRAM_SELECTIONS[index] || {};
+        const current = next[index] ? { ...next[index] } : { ...template };
+        const updated = { ...current, ...updates };
+        if (
+          current.type !== updated.type ||
+          current.value !== updated.value
+        ) {
+          next[index] = updated;
+          changed = true;
+        }
+      };
+
+      assignSlot(0, {
+        type: primaryMajor ? "Major" : "None",
+        value: primaryMajor || "",
+      });
+
+      if (showSecondaryMajor) {
+        assignSlot(1, {
+          type: "Second Major",
+          value: secondaryMajor || "",
+        });
+      } else if (showMinorPlanner) {
+        assignSlot(1, {
+          type: "Minor",
+          value: selectedMinor || "",
+        });
+      } else {
+        assignSlot(1, {
+          type: "None",
+          value: "",
+        });
+      }
+
+      return changed ? next : prev;
+    });
+  }, [primaryMajor, secondaryMajor, showSecondaryMajor, selectedMinor, showMinorPlanner]);
 
   const updateSlot = (termId, slotIdx, updater) => {
     setTerms(prev =>
@@ -993,32 +1087,55 @@ export default function App() {
     setTerms(prev => [...prev, newTerm]);
   };
 
-  const addYear = () => {
-    const maxYear = Math.max(...terms.map(t => t.year), 0);
-    const newYear = maxYear + 1;
-    const latestCalendarYear = Math.max(...terms.map(t => t.calendarYear || startYear), startYear);
-
-    const newTerms = [
-      {
-        id: `Y${newYear}-F`,
-        label: `Fall ${latestCalendarYear + newYear - 1}`,
-        year: newYear,
-        season: "Fall",
-        calendarYear: latestCalendarYear + newYear - 1,
-        slots: [newSlot(), newSlot(), newSlot(), newSlot()]
-      },
-      {
-        id: `Y${newYear}-S`,
-        label: `Spring ${latestCalendarYear + newYear}`,
-        year: newYear,
-        season: "Spring", 
-        calendarYear: latestCalendarYear + newYear,
-        slots: [newSlot(), newSlot(), newSlot(), newSlot()]
-      }
-    ];
-
-    setTerms(prev => [...prev, ...newTerms]);
+  const autoFillYears = () => {
+    const defaults = getDefaultTerms(startYear);
+    setTerms(defaults);
+    setActiveTermId(null);
+    setCurrentTermId("");
   };
+
+  const determineAutoCurrentTermId = useCallback(() => {
+    if (!terms.length) return "";
+    const month = new Date().getMonth(); // 0-based
+    const year = new Date().getFullYear();
+    const seasonFromMonth = (m) => {
+      if (m === 0) return "Winter";
+      if (m >= 1 && m <= 4) return "Spring";
+      if (m >= 5 && m <= 7) return "Summer";
+      return "Fall";
+    };
+    const targetSeason = seasonFromMonth(month);
+    const targetYear = (() => {
+      if (targetSeason === "Fall") return year;
+      if (targetSeason === "Winter") return year;
+      if (targetSeason === "Spring") return year;
+      if (targetSeason === "Summer") return year;
+      return year;
+    })();
+    const seasonOrder = { Fall: 1, Winter: 2, Spring: 3, Summer: 4 };
+    const sorted = [...terms].sort((a, b) => {
+      if (a.calendarYear !== b.calendarYear) return (a.calendarYear || 0) - (b.calendarYear || 0);
+      return (seasonOrder[a.season] || 0) - (seasonOrder[b.season] || 0);
+    });
+    const exact = sorted.find(term =>
+      term.season === targetSeason && (term.calendarYear || 0) === targetYear
+    );
+    if (exact) return exact.id;
+    const future = sorted.find(term =>
+      (term.calendarYear || 0) > targetYear ||
+      ((term.calendarYear || 0) === targetYear && (seasonOrder[term.season] || 0) > (seasonOrder[targetSeason] || 0))
+    );
+    if (future) return future.id;
+    return sorted[sorted.length - 1]?.id || "";
+  }, [terms]);
+
+  useEffect(() => {
+    if (currentTermId && terms.some(term => term.id === currentTermId)) return;
+    const guessed = determineAutoCurrentTermId();
+    if (guessed) {
+      setCurrentTermId(guessed);
+    }
+  }, [terms, currentTermId, determineAutoCurrentTermId]);
 
   const updateTermYear = (termId, newCalendarYear) => {
     setTerms(prev => prev.map(t => {
@@ -1036,7 +1153,33 @@ export default function App() {
   const updateStartYear = (year) => {
     if (!Number.isFinite(year)) return;
     setStartYear(year);
-    setTerms(getDefaultTerms(year));
+    setTerms(prev => {
+      if (!prev.length) return prev;
+      return prev.map(term => {
+        const derivedSeason =
+          term.season ||
+          (term.id?.includes("-F") ? "Fall" :
+           term.id?.includes("-S") ? "Spring" :
+           term.id?.includes("-U") ? "Summer" :
+           term.id?.includes("-W") ? "Winter" : "Fall");
+        const baseYear = Number.isFinite(term.year) ? term.year : (() => {
+          const match = term.id?.match(/Y(\d+)-/);
+          return match ? parseInt(match[1], 10) : 1;
+        })();
+        const adjustedYear = baseYear || 1;
+        const actualYear =
+          derivedSeason === "Fall" || derivedSeason === "Winter"
+            ? year + (adjustedYear - 1)
+            : year + adjustedYear;
+        return {
+          ...term,
+          calendarYear: actualYear,
+          label: `${derivedSeason} ${actualYear}`,
+          season: derivedSeason,
+          year: adjustedYear,
+        };
+      });
+    });
     setActiveTermId(null);
   };
 
@@ -1216,7 +1359,7 @@ const computeRequirementProgress = (programId, requirementOptions, programCourse
     sum += Math.min(assigned / required, 1);
   });
   const pct = clamp01(sum / total);
-  return { pct, subtitle: `${Math.round(pct * 100)}% of ${total} reqs` };
+  return { pct, subtitle: `${Math.round(pct * 100)}% complete` };
 };
 
 const getCoursesForProgram = (programId) => {
@@ -1256,7 +1399,16 @@ const getMajorRelevantCourses = (majorValue, allCourses, programSelections) => {
   }
 
   if (combined.length === 0) {
-    return allCourses;
+    const fallbackDept = (() => {
+    if (SUBJECT_NAME_SET.has(majorValue)) return majorValue;
+      const departmentHint = programDepartment(majorValue);
+      if (departmentHint) return departmentHint;
+      return null;
+    })();
+    if (fallbackDept) {
+      return allCourses.filter(course => detectDepartmentFromCode(course.code) === fallbackDept);
+    }
+    return [];
   }
   return combined;
 };
@@ -1270,6 +1422,7 @@ const getMajorRequirementTarget = (majorName) => {
   if (config.mathStructure?.advancedTotalRequired) return config.mathStructure.advancedTotalRequired;
   if (config.econStructure?.totalCoursesRequired) return config.econStructure.totalCoursesRequired;
   if (config.bioStructure) return 9;
+  if (config.anthroStructure) return 9;
   if (config.csStructure) {
     const coreCount = (config.csStructure.coreGroups?.length || 0) + (config.csStructure.introOptions ? 1 : 0);
     return coreCount + (config.csStructure.level300Required || 0) + (config.csStructure.electivesRequired || 0);
@@ -1292,6 +1445,11 @@ const ProgramStatRow = ({
   </div>
 );
 
+const formatUnitDisplay = (value) => {
+  if (!Number.isFinite(value)) return "0";
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+};
+
 const getTotalUnitsStat = (majorName, courses = []) => {
   if (!majorName) return null;
   const target = getMajorRequirementTarget(majorName);
@@ -1301,25 +1459,13 @@ const getTotalUnitsStat = (majorName, courses = []) => {
     if (Number.isFinite(credits) && credits > 0) return sum + credits;
     return sum + 1;
   }, 0);
-  const formattedTotal = Number.isInteger(total) ? total : total.toFixed(1);
+  const formattedTotal = formatUnitDisplay(total);
   return {
     label: "Total units",
     value: `${formattedTotal}/${target}`,
     earned: total,
     target,
   };
-};
-
-const TotalUnitsCard = ({ stat, className = "" }) => {
-  if (!stat || !stat.target) return null;
-  return (
-    <div className={cx("rounded-lg border border-indigo-100 bg-white px-3 py-2 text-center", className)}>
-      <div className="text-[0.55rem] uppercase tracking-wide text-slate-500">
-        {stat.label}
-      </div>
-      <div className="text-base font-semibold text-slate-900">{stat.value}</div>
-    </div>
-  );
 };
 
 
@@ -1430,42 +1576,58 @@ const TotalUnitsCard = ({ stat, className = "" }) => {
 
   const renderMajorIntro = (majorReq) => {
     if (!majorReq) return null;
+    if (!majorReq.prerequisites) return null;
     return (
-      <>
-        {majorReq.description && (
-          <div className="mb-4 text-xs text-slate-600">{majorReq.description}</div>
-        )}
-        {majorReq.prerequisites && (
-          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[0.7rem] text-amber-900">
-            <div className="text-[0.6rem] font-semibold uppercase tracking-wide text-amber-800">
-              Prerequisites
-            </div>
-            <p className="mt-1">{majorReq.prerequisites}</p>
-          </div>
-        )}
-      </>
+      <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[0.7rem] text-amber-900">
+        <div className="text-[0.6rem] font-semibold uppercase tracking-wide text-amber-800">
+          Prerequisites
+        </div>
+        <p className="mt-1">{majorReq.prerequisites}</p>
+      </div>
     );
   };
 
-  const renderPlan = () => (
+  const renderPlan = () => {
+    const seasonOrder = { Fall: 1, Winter: 2, Spring: 3, Summer: 4 };
+    const sortedTerms = [...terms]
+      .filter(Boolean)
+      .sort((a, b) => {
+        if (a.year !== b.year) return a.year - b.year;
+        return (seasonOrder[a.season] || 0) - (seasonOrder[b.season] || 0);
+      });
+    const sortedTermIds = sortedTerms.map(term => term.id);
+    const currentIndex = currentTermId ? sortedTermIds.indexOf(currentTermId) : -1;
+    const termStatuses = {};
+    sortedTermIds.forEach((id, idx) => {
+      let status = "unspecified";
+      if (currentIndex >= 0) {
+        if (idx < currentIndex) status = "past";
+        else if (idx === currentIndex) status = "current";
+        else status = "future";
+      }
+      termStatuses[id] = status;
+    });
+
+    return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
       <div className="space-y-4">
-        <div className="flex items-center gap-3 rounded-xl border bg-white p-3">
-          <label className="text-sm font-medium text-slate-700">Start Year:</label>
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-white p-3 text-sm">
+          <label className="font-medium text-slate-700" htmlFor="start-year-input">Set College Start Year:</label>
           <input
+            id="start-year-input"
             type="number"
             value={startYear}
             onChange={(e) => updateStartYear(parseInt(e.target.value, 10))}
-            className="w-20 rounded border px-2 py-1 text-sm"
+            className="w-24 rounded border px-2 py-1"
             min="2020"
             max="2030"
           />
           <button
             type="button"
-            onClick={addYear}
-            className="rounded-xl border border-indigo-200 bg-white px-3 py-1 text-sm font-medium text-slate-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50"
+            onClick={autoFillYears}
+            className="rounded-lg border border-indigo-200 bg-white px-3 py-1 font-medium text-slate-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50"
           >
-            Auto-fill Years
+            Confirm
           </button>
         </div>
 
@@ -1503,7 +1665,7 @@ const TotalUnitsCard = ({ stat, className = "" }) => {
                   {!summer && (
                     <button
                       onClick={() => addTerm(y.id, 'Summer')}
-                      className="rounded bg-orange-100 px-2 py-1 text-orange-700 hover:bg-orange-200"
+                      className="rounded px-2 py-1 text-slate-600 bg-slate-100 hover:bg-slate-200"
                     >
                       + Summer
                     </button>
@@ -1511,7 +1673,7 @@ const TotalUnitsCard = ({ stat, className = "" }) => {
                   {!winter && (
                     <button
                       onClick={() => addTerm(y.id, 'Winter')}
-                      className="rounded bg-blue-100 px-2 py-1 text-blue-700 hover:bg-blue-200"
+                      className="rounded px-2 py-1 text-slate-600 bg-slate-100 hover:bg-slate-200"
                     >
                       + Winter
                     </button>
@@ -1526,6 +1688,7 @@ const TotalUnitsCard = ({ stat, className = "" }) => {
                     onRemove={() => removeTerm(fall.id)}
                     canRemove={canRemoveTerm(fall.id)}
                     onYearChange={updateTermYear}
+                    status={termStatuses[fall.id] || "unspecified"}
                   />
                 )}
                 {winter && (
@@ -1535,6 +1698,7 @@ const TotalUnitsCard = ({ stat, className = "" }) => {
                     onRemove={() => removeTerm(winter.id)}
                     canRemove={canRemoveTerm(winter.id)}
                     onYearChange={updateTermYear}
+                    status={termStatuses[winter.id] || "unspecified"}
                   />
                 )}
                 {spring && (
@@ -1544,6 +1708,7 @@ const TotalUnitsCard = ({ stat, className = "" }) => {
                     onRemove={() => removeTerm(spring.id)}
                     canRemove={canRemoveTerm(spring.id)}
                     onYearChange={updateTermYear}
+                    status={termStatuses[spring.id] || "unspecified"}
                   />
                 )}
                 {summer && (
@@ -1553,6 +1718,7 @@ const TotalUnitsCard = ({ stat, className = "" }) => {
                     onRemove={() => removeTerm(summer.id)}
                     canRemove={canRemoveTerm(summer.id)}
                     onYearChange={updateTermYear}
+                    status={termStatuses[summer.id] || "unspecified"}
                   />
                 )}
               </div>
@@ -1666,9 +1832,6 @@ const TotalUnitsCard = ({ stat, className = "" }) => {
               Open major tab
             </button>
           </div>
-          <p className="mb-3 text-[0.65rem] text-slate-500">
-            Choose up to two programs to keep their requirements visible while you build your plan.
-          </p>
           <div className="space-y-3">
             {programSelections.map(program => {
               const programCourses = program.value ? getCoursesForProgram(program.id) : [];
@@ -1679,6 +1842,25 @@ const TotalUnitsCard = ({ stat, className = "" }) => {
               const requirementProgress = program.value && requirementOptions.length
                 ? computeRequirementProgress(program.id, requirementOptions, programCourses)
                 : { pct: 0, subtitle: program.value ? "Mark requirements" : "No program" };
+              const totalTarget = program.value ? getMajorRequirementTarget(program.value) : 0;
+              const fallbackUnits = totalUnitsStat || (totalTarget ? { earned: 0, target: totalTarget } : null);
+              const progressLabel = program.type === "Minor" ? "Minor progress" : "Major progress";
+              const buildProgramRingData = (stat = totalUnitsStat || fallbackUnits) => {
+                if (stat?.target) {
+                  const earned = stat.earned ?? 0;
+                  const pct = stat.target ? clamp01(earned / stat.target) : 0;
+                  return { pct, subtitle: `${formatUnitDisplay(earned)}/${stat.target} units` };
+                }
+                return { pct: requirementProgress.pct, subtitle: requirementProgress.subtitle };
+              };
+              const renderProgramRing = (stat) => {
+                const ringData = buildProgramRingData(stat);
+                return (
+                  <div className="flex justify-center py-2">
+                    <RingStat pct={ringData.pct} label={progressLabel} subtitle={ringData.subtitle} />
+                  </div>
+                );
+              };
               return (
                 <div key={program.id} className="rounded-xl border px-3 py-3">
                   <div className="flex flex-col gap-2 text-[0.65rem] sm:flex-row sm:items-center">
@@ -1710,17 +1892,17 @@ const TotalUnitsCard = ({ stat, className = "" }) => {
                   </div>
 
                   {program.type !== "None" && !program.value && (
-                    <div className="mt-3 text-[0.65rem] text-slate-500">
-                      Pick a program to see its requirement checklist here.
+                    <div className="mt-3 flex flex-col gap-2 text-[0.65rem] text-slate-500">
+                      {renderProgramRing(fallbackUnits)}
+                      <div>
+                        Pick a program to see its requirement checklist here.
+                      </div>
                     </div>
                   )}
 
                   {program.type !== "None" && program.value && summary && summary.isSpecial && summary.masProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      <div className="flex justify-center py-2">
-                        <RingStat pct={requirementProgress.pct} label="Major progress" subtitle={requirementProgress.subtitle} />
-                      </div>
-                      <TotalUnitsCard stat={totalUnitsStat} />
+                      {renderProgramRing(totalUnitsStat || fallbackUnits)}
                       {(() => {
                         const assignedIntro = countAssignedRequirement(programCourses, program.id, "mas-intro");
                         const assignedStudio = countAssignedRequirement(programCourses, program.id, "mas-studio");
@@ -1784,10 +1966,7 @@ const TotalUnitsCard = ({ stat, className = "" }) => {
 
                   {program.type !== "None" && program.value && summary && summary.isCS && summary.csProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      <div className="flex justify-center py-2">
-                        <RingStat pct={requirementProgress.pct} label="Major progress" subtitle={requirementProgress.subtitle} />
-                      </div>
-                      <TotalUnitsCard stat={totalUnitsStat} />
+                      {renderProgramRing()}
                       {(() => {
                         const totalCore = summary.csProgress.coreGroups.length;
                         const completedCore = summary.csProgress.coreGroups.filter(group => group.completed).length;
@@ -1831,10 +2010,7 @@ const TotalUnitsCard = ({ stat, className = "" }) => {
 
                   {program.type !== "None" && program.value && summary && summary.isBio && summary.bioProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      <div className="flex justify-center py-2">
-                        <RingStat pct={requirementProgress.pct} label="Major progress" subtitle={requirementProgress.subtitle} />
-                      </div>
-                      <TotalUnitsCard stat={totalUnitsStat} />
+                      {renderProgramRing()}
                       {(() => {
                         const introCellAssigned = countAssignedRequirement(programCourses, program.id, "bio-intro-cell");
                         const introOrgAssigned = countAssignedRequirement(programCourses, program.id, "bio-intro-organismal");
@@ -1888,10 +2064,7 @@ const TotalUnitsCard = ({ stat, className = "" }) => {
 
                   {program.type !== "None" && program.value && summary && summary.isEnglish && summary.englishProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      <div className="flex justify-center py-2">
-                        <RingStat pct={requirementProgress.pct} label="Major progress" subtitle={requirementProgress.subtitle} />
-                      </div>
-                      <TotalUnitsCard stat={totalUnitsStat} />
+                      {renderProgramRing()}
                       {(() => {
                         const struct = summary.config?.englishStructure || {};
                         const topTiles = [
@@ -1943,10 +2116,7 @@ const TotalUnitsCard = ({ stat, className = "" }) => {
 
                   {program.type !== "None" && program.value && summary && summary.isAfr && summary.afrProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      <div className="flex justify-center py-2">
-                        <RingStat pct={requirementProgress.pct} label="Major progress" subtitle={requirementProgress.subtitle} />
-                      </div>
-                      <TotalUnitsCard stat={totalUnitsStat} />
+                      {renderProgramRing()}
                       <div className="grid gap-2 sm:grid-cols-3">
                         <div className="rounded border px-3 py-2 text-center">
                           <div className="text-[0.55rem] uppercase text-slate-500">Intro Course</div>
@@ -1975,10 +2145,7 @@ const TotalUnitsCard = ({ stat, className = "" }) => {
 
                   {program.type !== "None" && program.value && summary && summary.isAmst && summary.amstProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      <div className="flex justify-center py-2">
-                        <RingStat pct={requirementProgress.pct} label="Major progress" subtitle={requirementProgress.subtitle} />
-                      </div>
-                      <TotalUnitsCard stat={totalUnitsStat} />
+                      {renderProgramRing()}
                       <div className="grid gap-2 sm:grid-cols-3">
                         <div className="rounded border px-3 py-2 text-center">
                           <div className="text-[0.55rem] uppercase text-slate-500">Intro AMST</div>
@@ -2007,10 +2174,7 @@ const TotalUnitsCard = ({ stat, className = "" }) => {
 
                   {program.type !== "None" && program.value && summary && summary.isAnthro && summary.anthroProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      <div className="flex justify-center py-2">
-                        <RingStat pct={requirementProgress.pct} label="Major progress" subtitle={requirementProgress.subtitle} />
-                      </div>
-                      <TotalUnitsCard stat={totalUnitsStat} />
+                      {renderProgramRing()}
                       {(() => {
                         const tiles = [
                           { label: "ANTH 101", req: "anth-101", fallback: summary.anthroProgress.introPrimary ? "✓" : "0/1" },
@@ -2057,12 +2221,9 @@ const TotalUnitsCard = ({ stat, className = "" }) => {
                     </div>
                   )}
 
-                  {program.type !== "None" && program.value && summary && !summary.isSpecial && !summary.isCS && !summary.isBio && !summary.isAnthro && !summary.isEnglish && (
-                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                      <div className="col-span-full flex justify-center py-2">
-                        <RingStat pct={requirementProgress.pct} label="Major progress" subtitle={requirementProgress.subtitle} />
-                      </div>
-                      <TotalUnitsCard stat={totalUnitsStat} className="col-span-full" />
+                  {program.type !== "None" && program.value && summary && !summary.isSpecial && !summary.isCS && !summary.isBio && !summary.isAnthro && !summary.isEnglish && !summary.isAfr && !summary.isAmst && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      {renderProgramRing()}
                       {(() => {
                         const manualRequired = new Set();
                         let manualElective = 0;
@@ -2146,6 +2307,7 @@ const TotalUnitsCard = ({ stat, className = "" }) => {
       </div>
     </div>
   );
+  };
 
   const renderRequirements = () => (
     <div className="mt-4 space-y-4">
@@ -2298,117 +2460,107 @@ const renderMASMajor = (majorReq, courses, majorValue, onChange) => {
     totals,
   } = computeMASProgress(courses, majorReq);
 
-    return (
-      <div className="mt-4 space-y-4">
-        <div className="rounded-2xl border bg-white p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="text-sm font-semibold text-slate-900">Media Arts and Sciences Major</div>
-            <MajorSelect value={majorValue} onChange={onChange} />
+  return (
+    <div className="space-y-4">
+      {renderMajorIntro(majorReq)}
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="rounded-lg border p-3">
+          <div className="mb-2 text-sm font-medium">Introductory Courses (3 required)</div>
+          <div className="space-y-2 text-xs">
+            <div className={cx(
+              "p-2 rounded",
+              visualAnalysis.length > 0 ? "bg-green-50 text-green-700" : "bg-gray-50 text-gray-600"
+            )}>
+              <div className="font-medium">Visual Analysis</div>
+              <div className="text-[0.65rem]">ARTH 100/WRIT 107 or CAMS 100</div>
+              {visualAnalysis.length > 0 && <div className="text-[0.6rem] mt-1">✓ {visualAnalysis[0].code}</div>}
+            </div>
+            <div className={cx(
+              "p-2 rounded",
+              studioFoundation.length > 0 ? "bg-green-50 text-green-700" : "bg-gray-50 text-gray-600"
+            )}>
+              <div className="font-medium">Studio Foundation</div>
+              <div className="text-[0.65rem]">Any 100-level ARTS course</div>
+              {studioFoundation.length > 0 && <div className="text-[0.6rem] mt-1">✓ {studioFoundation[0].code}</div>}
+            </div>
+            <div className={cx(
+              "p-2 rounded",
+              csIntro.length > 0 ? "bg-green-50 text-green-700" : "bg-gray-50 text-gray-600"
+            )}>
+              <div className="font-medium">Computer Science</div>
+              <div className="text-[0.65rem]">Any 100-level CS course</div>
+              {csIntro.length > 0 && <div className="text-[0.6rem] mt-1">✓ {csIntro[0].code}</div>}
+            </div>
           </div>
+          <div className="mt-2 text-xs text-slate-500">
+            {(visualAnalysis.length > 0 ? 1 : 0) + (studioFoundation.length > 0 ? 1 : 0) + (csIntro.length > 0 ? 1 : 0)}/3 completed
+          </div>
+        </div>
 
-          {renderMajorIntro(majorReq)}
+        <div className="rounded-lg border p-3">
+          <div className="mb-2 text-sm font-medium">Core Courses (6 required)</div>
+          <div className="space-y-2 text-xs">
+            <div className="p-2 bg-blue-50 rounded">
+              <div className="font-medium">Studio Core (3 required)</div>
+              <div className="text-[0.65rem] text-slate-600">Choose from ARTS/CAMS/MUS studio courses</div>
+              {studioCore.slice(0, 3).map((course, i) => (
+                <div key={i} className="text-[0.6rem] text-blue-700 mt-1">✓ {course.code}</div>
+              ))}
+              <div className="text-[0.6rem] mt-1">{Math.min(studioCore.length, 3)}/3 completed</div>
+            </div>
+            <div className="p-2 bg-purple-50 rounded">
+              <div className="font-medium">CS Core (3 required)</div>
+              <div className="text-[0.65rem] text-slate-600">Choose from CS core courses</div>
+              {csCore.slice(0, 3).map((course, i) => (
+                <div key={i} className="text-[0.6rem] text-purple-700 mt-1">✓ {course.code}</div>
+              ))}
+              <div className="text-[0.6rem] mt-1">{Math.min(csCore.length, 3)}/3 completed</div>
+            </div>
+          </div>
+        </div>
 
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {/* Introductory Requirements */}
-            <div className="rounded-lg border p-3">
-              <div className="mb-2 text-sm font-medium">Introductory Courses (3 required)</div>
-              <div className="space-y-2 text-xs">
-                <div className={cx(
-                  "p-2 rounded",
-                  visualAnalysis.length > 0 ? "bg-green-50 text-green-700" : "bg-gray-50 text-gray-600"
-                )}>
-                  <div className="font-medium">Visual Analysis</div>
-                  <div className="text-[0.65rem]">ARTH 100/WRIT 107 or CAMS 100</div>
-                  {visualAnalysis.length > 0 && <div className="text-[0.6rem] mt-1">✓ {visualAnalysis[0].code}</div>}
-                </div>
-                <div className={cx(
-                  "p-2 rounded",
-                  studioFoundation.length > 0 ? "bg-green-50 text-green-700" : "bg-gray-50 text-gray-600"
-                )}>
-                  <div className="font-medium">Studio Foundation</div>
-                  <div className="text-[0.65rem]">Any 100-level ARTS course</div>
-                  {studioFoundation.length > 0 && <div className="text-[0.6rem] mt-1">✓ {studioFoundation[0].code}</div>}
-                </div>
-                <div className={cx(
-                  "p-2 rounded",
-                  csIntro.length > 0 ? "bg-green-50 text-green-700" : "bg-gray-50 text-gray-600"
-                )}>
-                  <div className="font-medium">Computer Science</div>
-                  <div className="text-[0.65rem]">Any 100-level CS course</div>
-                  {csIntro.length > 0 && <div className="text-[0.6rem] mt-1">✓ {csIntro[0].code}</div>}
-                </div>
-              </div>
-              <div className="mt-2 text-xs text-slate-500">
-                {(visualAnalysis.length > 0 ? 1 : 0) + (studioFoundation.length > 0 ? 1 : 0) + (csIntro.length > 0 ? 1 : 0)}/3 completed
+        <div className="rounded-lg border p-3">
+          <div className="mb-2 text-sm font-medium">Additional Requirements</div>
+          <div className="space-y-2 text-xs">
+            <div className="p-2 bg-slate-50 rounded">
+              <div className="font-medium">MAS Electives (3 units)</div>
+              <div className="text-[0.65rem] text-slate-600">Approved interdisciplinary courses</div>
+              <div className="mt-1 text-sm font-semibold text-slate-900">
+                {Math.min(additional.length, 3)}/3 completed
               </div>
             </div>
-
-            {/* Core Courses */}
-            <div className="rounded-lg border p-3">
-              <div className="mb-2 text-sm font-medium">Core Courses (6 required)</div>
-              <div className="space-y-2 text-xs">
-                <div className="p-2 bg-blue-50 rounded">
-                  <div className="font-medium">Studio Core (3 required)</div>
-                  <div className="text-[0.65rem] text-slate-600">Choose from ARTS/CAMS/MUS studio courses</div>
-                  {studioCore.slice(0, 3).map((course, i) => (
-                    <div key={i} className="text-[0.6rem] text-blue-700 mt-1">✓ {course.code}</div>
-                  ))}
-                  <div className="text-[0.6rem] mt-1">{Math.min(studioCore.length, 3)}/3 completed</div>
-                </div>
-                <div className="p-2 bg-purple-50 rounded">
-                  <div className="font-medium">CS Core (3 required)</div>
-                  <div className="text-[0.65rem] text-slate-600">Choose from CS core courses</div>
-                  {csCore.slice(0, 3).map((course, i) => (
-                    <div key={i} className="text-[0.6rem] text-purple-700 mt-1">✓ {course.code}</div>
-                  ))}
-                  <div className="text-[0.6rem] mt-1">{Math.min(csCore.length, 3)}/3 completed</div>
-                </div>
+            <div className={cx(
+              "p-2 rounded",
+              capstone.length > 0 ? "bg-green-50 text-green-700" : "bg-gray-50 text-gray-600"
+            )}>
+              <div className="font-medium">Capstone Course</div>
+              <div className="text-[0.65rem]">1 required (senior year)</div>
+              {capstone.length > 0 && <div className="text-[0.6rem] mt-1">✓ {capstone[0].code}</div>}
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <div className="rounded border p-2 text-[0.65rem]">
+                <div className="text-[0.55rem] uppercase text-slate-500">Total units</div>
+                <div className="text-sm font-semibold text-slate-900">{totals.totalUnits.toFixed(1)}/12</div>
+              </div>
+              <div className="rounded border p-2 text-[0.65rem]">
+                <div className="text-[0.55rem] uppercase text-slate-500">Courses &gt;100</div>
+                <div className="text-sm font-semibold text-slate-900">{totals.upperLevelCourses}/8+</div>
+              </div>
+              <div className="rounded border p-2 text-[0.65rem]">
+                <div className="text-[0.55rem] uppercase text-slate-500">300-level</div>
+                <div className="text-sm font-semibold text-slate-900">{totals.level300Count}/2+</div>
               </div>
             </div>
-
-            {/* Capstone & Other Requirements */}
-            <div className="rounded-lg border p-3">
-              <div className="mb-2 text-sm font-medium">Additional Requirements</div>
-              <div className="space-y-2 text-xs">
-                <div className="p-2 bg-slate-50 rounded">
-                  <div className="font-medium">MAS Electives (3 units)</div>
-                  <div className="text-[0.65rem] text-slate-600">Approved interdisciplinary courses</div>
-                  <div className="mt-1 text-sm font-semibold text-slate-900">
-                    {Math.min(additional.length, 3)}/3 completed
-                  </div>
-                </div>
-                <div className={cx(
-                  "p-2 rounded",
-                  capstone.length > 0 ? "bg-green-50 text-green-700" : "bg-gray-50 text-gray-600"
-                )}>
-                  <div className="font-medium">Capstone Course</div>
-                  <div className="text-[0.65rem]">1 required (senior year)</div>
-                  {capstone.length > 0 && <div className="text-[0.6rem] mt-1">✓ {capstone[0].code}</div>}
-                </div>
-                <div className="grid gap-2 sm:grid-cols-3">
-                  <div className="rounded border p-2 text-[0.65rem]">
-                    <div className="text-[0.55rem] uppercase text-slate-500">Total units</div>
-                    <div className="text-sm font-semibold text-slate-900">{totals.totalUnits.toFixed(1)}/12</div>
-                  </div>
-                    <div className="rounded border p-2 text-[0.65rem]">
-                      <div className="text-[0.55rem] uppercase text-slate-500">Courses &gt;100</div>
-                    <div className="text-sm font-semibold text-slate-900">{totals.upperLevelCourses}/8+</div>
-                  </div>
-                  <div className="rounded border p-2 text-[0.65rem]">
-                    <div className="text-[0.55rem] uppercase text-slate-500">300-level</div>
-                    <div className="text-sm font-semibold text-slate-900">{totals.level300Count}/2+</div>
-                  </div>
-                </div>
-                <div className="p-2 bg-orange-50 rounded">
-                  <div className="font-medium">Online Portfolio</div>
-                  <div className="text-[0.65rem]">Required senior year</div>
-                </div>
-              </div>
+            <div className="p-2 bg-orange-50 rounded">
+              <div className="font-medium">Online Portfolio</div>
+              <div className="text-[0.65rem]">Required senior year</div>
             </div>
           </div>
         </div>
       </div>
-    );
+    </div>
+  );
 };
 
 const renderCSMajor = (majorReq, courses, majorValue, onChange) => {
@@ -2419,18 +2571,12 @@ const renderCSMajor = (majorReq, courses, majorValue, onChange) => {
   const mathCourse = progress.mathRequirements[0] || "MATH 225";
 
   return (
-    <div className="mt-4 space-y-4">
-      <div className="rounded-2xl border bg-white p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="text-sm font-semibold text-slate-900">Computer Science Major</div>
-          <MajorSelect value={majorValue} onChange={onChange} />
-        </div>
+    <div className="space-y-4">
+      {renderMajorIntro(majorReq)}
 
-        {renderMajorIntro(majorReq)}
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-lg border p-3">
-            <div className="mb-2 text-sm font-medium">Foundation & Core</div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-lg border p-3">
+          <div className="mb-2 text-sm font-medium">Foundation & Core</div>
             <div className="space-y-2 text-xs">
               <div className={cx(
                 "flex items-center justify-between rounded border px-2 py-1",
@@ -2486,16 +2632,15 @@ const renderCSMajor = (majorReq, courses, majorValue, onChange) => {
             </div>
           </div>
 
-          <div className="rounded-lg border p-3 md:col-span-2">
-            <div className="mb-2 text-sm font-medium">Supporting mathematics</div>
-            <div className="flex items-center justify-between rounded border px-3 py-2 text-xs">
-              <div>
-                <div className="text-[0.55rem] uppercase text-slate-500">Required</div>
+        <div className="rounded-lg border p-3 md:col-span-2">
+          <div className="mb-2 text-sm font-medium">Supporting mathematics</div>
+          <div className="flex items-center justify-between rounded border px-3 py-2 text-xs">
+            <div>
+              <div className="text-[0.55rem] uppercase text-slate-500">Required</div>
                 <div>MATH 225 (Combinatorics and Graph Theory)</div>
               </div>
               <div className={progress.mathSatisfied ? "text-green-600 font-semibold" : "text-slate-500 font-semibold"}>
                 {progress.mathSatisfied ? "Completed" : "Pending"}
-              </div>
             </div>
           </div>
         </div>
@@ -2509,18 +2654,12 @@ const renderBioMajor = (majorReq, courses, majorValue, onChange) => {
   const groupCompletion = [progress.groupCell, progress.groupSystems, progress.groupCommunity].filter(Boolean).length;
 
   return (
-    <div className="mt-4 space-y-4">
-      <div className="rounded-2xl border bg-white p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="text-sm font-semibold text-slate-900">Biological Sciences Major</div>
-          <MajorSelect value={majorValue} onChange={onChange} />
-        </div>
+    <div className="space-y-4">
+      {renderMajorIntro(majorReq)}
 
-        {renderMajorIntro(majorReq)}
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-lg border p-3">
-            <div className="mb-2 text-sm font-medium">Introductory Tier</div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-lg border p-3">
+          <div className="mb-2 text-sm font-medium">Introductory Tier</div>
             <div className="space-y-2 text-xs">
               <div className={cx(
                 "flex items-center justify-between rounded border px-2 py-1",
@@ -2612,7 +2751,6 @@ const renderBioMajor = (majorReq, courses, majorValue, onChange) => {
             </div>
           </div>
         </div>
-      </div>
     </div>
   );
 };
@@ -2624,138 +2762,133 @@ const renderCustomMajor = (majorValue, onChange, displayLabel = "Custom Major") 
   const canSaveCustomMajor = !!trimmedName && !nameExists;
 
   return (
-    <div className="mt-4 space-y-4">
-      <div className="rounded-2xl border bg-white p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="text-sm font-semibold text-slate-900">{displayLabel}</div>
-          <MajorSelect value={majorValue} onChange={onChange} />
-        </div>
+    <div className="space-y-4">
+      <div className="text-sm font-semibold text-slate-900">{displayLabel}</div>
 
-        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-3 py-3 text-xs text-slate-600">
-          <div className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
-            Name this custom plan
-          </div>
-          <p className="mt-1">
-            Add a label to create a dedicated custom major entry in every dropdown.
-          </p>
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-            <input
-              type="text"
-              value={newCustomMajorName}
-              onChange={(e) => setNewCustomMajorName(e.target.value)}
-              placeholder="Name your custom major"
-              className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              maxLength={60}
-            />
-            <button
-              type="button"
-              onClick={addCustomMajor}
-              disabled={!canSaveCustomMajor}
-              className={cx(
-                "rounded-full px-4 py-2 text-sm font-medium",
-                canSaveCustomMajor
-                  ? "bg-indigo-600 text-white hover:bg-indigo-500"
-                  : "bg-slate-200 text-slate-500 cursor-not-allowed"
-              )}
-            >
-              Add custom major
-            </button>
-          </div>
-          {nameExists && (
-            <div className="mt-1 text-[0.65rem] font-medium text-rose-600">
-              That name is already in your list.
-            </div>
-          )}
-          {customMajors.length > 0 && (
-            <div className="mt-3">
-              <div className="text-[0.65rem] uppercase tracking-wide text-slate-500">Your custom majors</div>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {customMajors.map(major => (
-                  <div
-                    key={major.id}
-                    className="flex flex-wrap items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-[0.7rem] font-semibold text-slate-700"
-                  >
-                    {editingCustomMajorId === major.id ? (
-                      <>
-                        <input
-                          type="text"
-                          value={editingCustomMajorName}
-                          onChange={(e) => setEditingCustomMajorName(e.target.value)}
-                          className="rounded border border-slate-300 px-2 py-1 text-xs font-normal text-slate-800"
-                          maxLength={60}
-                        />
-                        <button
-                          type="button"
-                          onClick={saveEditingCustomMajor}
-                          className="rounded border border-green-300 px-2 py-0.5 text-[0.65rem] font-semibold text-green-700 hover:bg-green-50"
-                        >
-                          Save
-                        </button>
-                        <button
-                          type="button"
-                          onClick={cancelEditingCustomMajor}
-                          className="rounded border border-slate-300 px-2 py-0.5 text-[0.65rem] font-semibold text-slate-600 hover:bg-white"
-                        >
-                          Cancel
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <span>{major.name}</span>
-                        <button
-                          type="button"
-                          onClick={() => startEditingCustomMajor(major)}
-                          className="text-slate-400 transition hover:text-indigo-500"
-                          aria-label={`Edit ${major.name}`}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeCustomMajor(major.id)}
-                          className="text-slate-400 transition hover:text-rose-500"
-                          aria-label={`Remove ${major.name}`}
-                        >
-                          ×
-                        </button>
-                      </>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-3 py-3 text-xs text-slate-600">
+        <div className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+          Name this custom plan
         </div>
-
-        <div className="mt-4 space-y-2">
-          {customMajorRequirements.map((req, idx) => (
-            <div key={idx} className="flex items-center gap-2">
-              <span className="w-6 text-right text-xs text-slate-500">{idx + 1}.</span>
-              <input
-                type="text"
-                value={req}
-                onChange={(e) => updateCustomRequirement(idx, e.target.value)}
-                placeholder="Enter course or requirement name"
-                className="flex-1 rounded-lg border px-3 py-2 text-sm"
-                maxLength={120}
-              />
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-4 flex justify-end">
+        <p className="mt-1">
+          Add a label to create a dedicated custom major entry in every dropdown.
+        </p>
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <input
+            type="text"
+            value={newCustomMajorName}
+            onChange={(e) => setNewCustomMajorName(e.target.value)}
+            placeholder="Name your custom major"
+            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            maxLength={60}
+          />
           <button
             type="button"
-            onClick={addCustomRequirementRow}
-            disabled={!canAddRow}
+            onClick={addCustomMajor}
+            disabled={!canSaveCustomMajor}
             className={cx(
-              "rounded-full px-4 py-1.5 text-sm font-medium",
-              canAddRow ? "border border-slate-300 text-slate-700 hover:bg-slate-50" : "border border-slate-200 text-slate-400 cursor-not-allowed"
+              "rounded-full px-4 py-2 text-sm font-medium",
+              canSaveCustomMajor
+                ? "bg-indigo-600 text-white hover:bg-indigo-500"
+                : "bg-slate-200 text-slate-500 cursor-not-allowed"
             )}
           >
-            {canAddRow ? "Add requirement" : "Max 15 rows reached"}
+            Add custom major
           </button>
         </div>
+        {nameExists && (
+          <div className="mt-1 text-[0.65rem] font-medium text-rose-600">
+            That name is already in your list.
+          </div>
+        )}
+        {customMajors.length > 0 && (
+          <div className="mt-3">
+            <div className="text-[0.65rem] uppercase tracking-wide text-slate-500">Your custom majors</div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {customMajors.map(major => (
+                <div
+                  key={major.id}
+                  className="flex flex-wrap items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-[0.7rem] font-semibold text-slate-700"
+                >
+                  {editingCustomMajorId === major.id ? (
+                    <>
+                      <input
+                        type="text"
+                        value={editingCustomMajorName}
+                        onChange={(e) => setEditingCustomMajorName(e.target.value)}
+                        className="rounded border border-slate-300 px-2 py-1 text-xs font-normal text-slate-800"
+                        maxLength={60}
+                      />
+                      <button
+                        type="button"
+                        onClick={saveEditingCustomMajor}
+                        className="rounded border border-green-300 px-2 py-0.5 text-[0.65rem] font-semibold text-green-700 hover:bg-green-50"
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelEditingCustomMajor}
+                        className="rounded border border-slate-300 px-2 py-0.5 text-[0.65rem] font-semibold text-slate-600 hover:bg-white"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span>{major.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => startEditingCustomMajor(major)}
+                        className="text-slate-400 transition hover:text-indigo-500"
+                        aria-label={`Edit ${major.name}`}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeCustomMajor(major.id)}
+                        className="text-slate-400 transition hover:text-rose-500"
+                        aria-label={`Remove ${major.name}`}
+                      >
+                        ×
+                      </button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        {customMajorRequirements.map((req, idx) => (
+          <div key={idx} className="flex items-center gap-2">
+            <span className="w-6 text-right text-xs text-slate-500">{idx + 1}.</span>
+            <input
+              type="text"
+              value={req}
+              onChange={(e) => updateCustomRequirement(idx, e.target.value)}
+              placeholder="Enter course or requirement name"
+              className="flex-1 rounded-lg border px-3 py-2 text-sm"
+              maxLength={120}
+            />
+          </div>
+        ))}
+      </div>
+
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={addCustomRequirementRow}
+          disabled={!canAddRow}
+          className={cx(
+            "rounded-full px-4 py-1.5 text-sm font-medium",
+            canAddRow ? "border border-slate-300 text-slate-700 hover:bg-slate-50" : "border border-slate-200 text-slate-400 cursor-not-allowed"
+          )}
+        >
+          {canAddRow ? "Add requirement" : "Max 15 rows reached"}
+        </button>
       </div>
     </div>
   );
@@ -2908,96 +3041,89 @@ const renderCustomMinor = (minorValue, onChange, displayLabel = "Custom Minor") 
 const renderMathMajor = (majorReq, courses, majorValue, onChange) => {
   const progress = computeMathProgress(courses, majorReq.mathStructure);
   return (
-    <div className="mt-4 space-y-4">
-      <div className="rounded-2xl border bg-white p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="text-sm font-semibold text-slate-900">Mathematics Major</div>
-          <MajorSelect value={majorValue} onChange={onChange} />
-        </div>
+    <div className="space-y-4">
+      {renderMajorIntro(majorReq)}
 
-        {renderMajorIntro(majorReq)}
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-lg border p-3">
-            <div className="mb-2 text-sm font-medium">Calculus foundations</div>
-            <div className="space-y-2 text-xs">
-              <div className={cx(
-                "flex items-center justify-between rounded border px-2 py-1",
-                progress.calculus115 ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600"
-              )}>
-                <span>MATH 115</span>
-                <span className="font-semibold">{progress.calculus115 ? "✓" : "Pending"}</span>
-              </div>
-              <div className={cx(
-                "flex items-center justify-between rounded border px-2 py-1",
-                progress.calculusSecond ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600"
-              )}>
-                <span>MATH 116 or MATH 120</span>
-                <span className="font-semibold">{progress.calculusSecond ? "✓" : "Pending"}</span>
-              </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-lg border p-3">
+          <div className="mb-2 text-sm font-medium">Calculus foundations</div>
+          <div className="space-y-2 text-xs">
+            <div className={cx(
+              "flex items-center justify-between rounded border px-2 py-1",
+              progress.calculus115 ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600"
+            )}>
+              <span>MATH 115</span>
+              <span className="font-semibold">{progress.calculus115 ? "✓" : "Pending"}</span>
             </div>
-          </div>
-
-          <div className="rounded-lg border p-3">
-            <div className="mb-2 text-sm font-medium">Core 200-level courses</div>
-            <div className="space-y-2 text-xs">
-              {progress.coreCompleted.map(item => (
-                <div key={item.code} className={cx(
-                  "flex items-center justify-between rounded border px-2 py-1",
-                  item.completed ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600"
-                )}>
-                  <span>{item.code}</span>
-                  <span className="font-semibold">{item.completed ? "✓" : "Pending"}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-lg border p-3">
-            <div className="mb-2 text-sm font-medium">300-level anchors</div>
-            <div className="space-y-2 text-xs">
-              {progress.seminarCompleted.map(item => (
-                <div key={item.code} className={cx(
-                  "flex items-center justify-between rounded border px-2 py-1",
-                  item.completed ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600"
-                )}>
-                  <span>{item.code}</span>
-                  <span className="font-semibold">{item.completed ? "✓" : "Pending"}</span>
-                </div>
-              ))}
-            </div>
-            <div className="mt-3 rounded bg-slate-50 px-3 py-2 text-xs">
-              <div className="text-[0.55rem] uppercase text-slate-500">Additional 300-level MATH</div>
-              <div className="flex items-center justify-between">
-                <span>Beyond MATH 302/305</span>
-                <span className="text-base font-semibold text-slate-900">
-                  {progress.additional300Count}/{progress.additional300Required}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-lg border p-3">
-            <div className="mb-2 text-sm font-medium">Advanced-unit count</div>
-            <div className="rounded bg-slate-50 px-3 py-2 text-xs">
-              <div className="text-[0.55rem] uppercase text-slate-500">MATH/STAT at 200+ level</div>
-              <div className="text-base font-semibold text-slate-900">
-                {progress.advancedTotal}/{progress.advancedRequired}
-              </div>
-              <div className="mt-1 text-[0.65rem] text-slate-500">
-                Includes STAT courses; excludes MATH 350/360/370.
-              </div>
+            <div className={cx(
+              "flex items-center justify-between rounded border px-2 py-1",
+              progress.calculusSecond ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600"
+            )}>
+              <span>MATH 116 or MATH 120</span>
+              <span className="font-semibold">{progress.calculusSecond ? "✓" : "Pending"}</span>
             </div>
           </div>
         </div>
 
-        {progress.presentationNote && (
-          <div className="mt-4 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/60 p-3 text-[0.75rem] text-indigo-900">
-            <div className="text-[0.6rem] uppercase font-semibold tracking-wide">Presentation requirement</div>
-            <p className="mt-1">{progress.presentationNote}</p>
+        <div className="rounded-lg border p-3">
+          <div className="mb-2 text-sm font-medium">Core 200-level courses</div>
+          <div className="space-y-2 text-xs">
+            {progress.coreCompleted.map(item => (
+              <div key={item.code} className={cx(
+                "flex items-center justify-between rounded border px-2 py-1",
+                item.completed ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600"
+              )}>
+                <span>{item.code}</span>
+                <span className="font-semibold">{item.completed ? "✓" : "Pending"}</span>
+              </div>
+            ))}
           </div>
-        )}
+        </div>
+
+        <div className="rounded-lg border p-3">
+          <div className="mb-2 text-sm font-medium">300-level anchors</div>
+          <div className="space-y-2 text-xs">
+            {progress.seminarCompleted.map(item => (
+              <div key={item.code} className={cx(
+                "flex items-center justify-between rounded border px-2 py-1",
+                item.completed ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600"
+              )}>
+                <span>{item.code}</span>
+                <span className="font-semibold">{item.completed ? "✓" : "Pending"}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 rounded bg-slate-50 px-3 py-2 text-xs">
+            <div className="text-[0.55rem] uppercase text-slate-500">Additional 300-level MATH</div>
+            <div className="flex items-center justify-between">
+              <span>Beyond MATH 302/305</span>
+              <span className="text-base font-semibold text-slate-900">
+                {progress.additional300Count}/{progress.additional300Required}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-lg border p-3">
+          <div className="mb-2 text-sm font-medium">Advanced-unit count</div>
+          <div className="rounded bg-slate-50 px-3 py-2 text-xs">
+            <div className="text-[0.55rem] uppercase text-slate-500">MATH/STAT at 200+ level</div>
+            <div className="text-base font-semibold text-slate-900">
+              {progress.advancedTotal}/{progress.advancedRequired}
+            </div>
+            <div className="mt-1 text-[0.65rem] text-slate-500">
+              Includes STAT courses; excludes MATH 350/360/370.
+            </div>
+          </div>
+        </div>
       </div>
+
+      {progress.presentationNote && (
+        <div className="rounded-xl border border-dashed border-indigo-200 bg-indigo-50/60 p-3 text-[0.75rem] text-indigo-900">
+          <div className="text-[0.6rem] uppercase font-semibold tracking-wide">Presentation requirement</div>
+          <p className="mt-1">{progress.presentationNote}</p>
+        </div>
+      )}
     </div>
   );
 };
@@ -3005,18 +3131,12 @@ const renderMathMajor = (majorReq, courses, majorValue, onChange) => {
 const renderEconMajor = (majorReq, courses, majorValue, onChange) => {
   const progress = computeEconProgress(courses, majorReq.econStructure);
   return (
-    <div className="mt-4 space-y-4">
-      <div className="rounded-2xl border bg-white p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="text-sm font-semibold text-slate-900">Economics Major</div>
-          <MajorSelect value={majorValue} onChange={onChange} />
-        </div>
+    <div className="space-y-4">
+      {renderMajorIntro(majorReq)}
 
-        {renderMajorIntro(majorReq)}
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-lg border p-3">
-            <div className="mb-2 text-sm font-medium">Microeconomics sequence</div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-lg border p-3">
+          <div className="mb-2 text-sm font-medium">Microeconomics sequence</div>
             <div className="space-y-2 text-xs">
               <div className={cx(
                 "flex items-center justify-between rounded border px-2 py-1",
@@ -3106,7 +3226,6 @@ const renderEconMajor = (majorReq, courses, majorValue, onChange) => {
             </div>
           </div>
         </div>
-      </div>
     </div>
   );
 };
@@ -3115,50 +3234,43 @@ const renderEnglishMajor = (majorReq, relevantCourses, majorValue, onChange) => 
   const struct = majorReq.englishStructure || {};
   const progress = computeEnglishProgress(relevantCourses, struct);
   return (
-    <div className="mt-4 space-y-4">
-      <div className="rounded-2xl border bg-white p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="text-sm font-semibold text-slate-900">{majorReq.description ? "English Major" : "English Programs"}</div>
-          <MajorSelect value={majorValue} onChange={onChange} />
+    <div className="space-y-4">
+      {renderMajorIntro(majorReq)}
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-lg border p-3">
+          <div className="mb-2 text-sm font-medium">Course totals</div>
+          <div className="space-y-1 text-xs">
+            <div className="flex items-center justify-between rounded bg-slate-50 px-2 py-1">
+              <span>English dept courses</span>
+              <span className="font-semibold">{progress.englishDeptCourses}/{struct.deptMinimum || 8}</span>
+            </div>
+          </div>
         </div>
 
-        {renderMajorIntro(majorReq)}
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-lg border p-3">
-            <div className="mb-2 text-sm font-medium">Course totals</div>
-            <div className="space-y-1 text-xs">
-              <div className="flex items-center justify-between rounded bg-slate-50 px-2 py-1">
-                <span>English dept courses</span>
-                <span className="font-semibold">{progress.englishDeptCourses}/{struct.deptMinimum || 8}</span>
-              </div>
+        <div className="rounded-lg border p-3">
+          <div className="mb-2 text-sm font-medium">Advanced coursework</div>
+          <div className="space-y-1 text-xs">
+            <div className="flex items-center justify-between rounded bg-slate-50 px-2 py-1">
+              <span>Upper-level (200+)</span>
+              <span className="font-semibold">{progress.upperLevelCourses}/{struct.upperLevelRequired || 7}</span>
+            </div>
+            <div className="flex items-center justify-between rounded bg-slate-50 px-2 py-1">
+              <span>300-level seminars</span>
+              <span className="font-semibold">{progress.level300Courses}/{struct.level300Required || 2}</span>
             </div>
           </div>
+        </div>
 
-          <div className="rounded-lg border p-3">
-            <div className="mb-2 text-sm font-medium">Advanced coursework</div>
-            <div className="space-y-1 text-xs">
-              <div className="flex items-center justify-between rounded bg-slate-50 px-2 py-1">
-                <span>Upper-level (200+)</span>
-                <span className="font-semibold">{progress.upperLevelCourses}/{struct.upperLevelRequired || 7}</span>
-              </div>
-              <div className="flex items-center justify-between rounded bg-slate-50 px-2 py-1">
-                <span>300-level seminars</span>
-                <span className="font-semibold">{progress.level300Courses}/{struct.level300Required || 2}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-lg border p-3 md:col-span-2">
-            <div className="mb-2 text-sm font-medium">Distribution checkpoints</div>
-            <ul className="text-xs text-slate-600 list-disc pl-5 space-y-1">
-              <li>Assign individual courses to the Postcolonial/Ethnic and Pre-1900/Pre-1800 buckets using the “Counts toward program(s)” panel in the planner.</li>
-              {struct.creativeWritingRequired > 0 && (
-                <li>English & Creative Writing majors should mark four creative writing experiences using the same panel.</li>
-              )}
-              <li>Only traditional seminars count toward the two required 300-level courses (independent work and 350s do not).</li>
-            </ul>
-          </div>
+        <div className="rounded-lg border p-3 md:col-span-2">
+          <div className="mb-2 text-sm font-medium">Distribution checkpoints</div>
+          <ul className="text-xs text-slate-600 list-disc pl-5 space-y-1">
+            <li>Assign individual courses to the Postcolonial/Ethnic and Pre-1900/Pre-1800 buckets using the “Counts toward program(s)” panel in the planner.</li>
+            {struct.creativeWritingRequired > 0 && (
+              <li>English & Creative Writing majors should mark four creative writing experiences using the same panel.</li>
+            )}
+            <li>Only traditional seminars count toward the two required 300-level courses (independent work and 350s do not).</li>
+          </ul>
         </div>
       </div>
     </div>
@@ -3169,74 +3281,67 @@ const renderAnthroMajor = (majorReq, courses, majorValue, onChange) => {
   const progress = computeAnthroProgress(courses, majorReq.anthroStructure, false);
 
   return (
-    <div className="mt-4 space-y-4">
-      <div className="rounded-2xl border bg-white p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="text-sm font-semibold text-slate-900">Anthropology Major</div>
-          <MajorSelect value={majorValue} onChange={onChange} />
+    <div className="space-y-4">
+      {renderMajorIntro(majorReq)}
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-lg border p-3">
+          <div className="mb-2 text-sm font-medium">Introductory Courses</div>
+          <div className="space-y-2 text-xs">
+            <div className={cx("flex items-center justify-between rounded border px-2 py-1", progress.introPrimary ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600") }>
+              <span>ANTH 101</span>
+              <span className="font-semibold">{progress.introPrimary ? "Completed" : "Pending"}</span>
+            </div>
+            <div className={cx("flex items-center justify-between rounded border px-2 py-1", progress.introSecondary ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600") }>
+              <span>ANTH 102 or ANTH/CLCV 103</span>
+              <span className="font-semibold">{progress.introSecondary ? "Completed" : "Pending"}</span>
+            </div>
+          </div>
         </div>
 
-        {renderMajorIntro(majorReq)}
+        <div className="rounded-lg border p-3">
+          <div className="mb-2 text-sm font-medium">Core Seminars</div>
+          <div className="space-y-2 text-xs">
+            <div className={cx("flex items-center justify-between rounded border px-2 py-1", progress.midCourse ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600") }>
+              <span>ANTH 205</span>
+              <span className="font-semibold">{progress.midCourse ? "✓" : ""}</span>
+            </div>
+            <div className={cx("flex items-center justify-between rounded border px-2 py-1", progress.seminar ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600") }>
+              <span>ANTH 301</span>
+              <span className="font-semibold">{progress.seminar ? "✓" : ""}</span>
+            </div>
+          </div>
+        </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-lg border p-3">
-            <div className="mb-2 text-sm font-medium">Introductory Courses</div>
-            <div className="space-y-2 text-xs">
-              <div className={cx("flex items-center justify-between rounded border px-2 py-1", progress.introPrimary ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600") }>
-                <span>ANTH 101</span>
-                <span className="font-semibold">{progress.introPrimary ? "Completed" : "Pending"}</span>
+        <div className="rounded-lg border p-3">
+          <div className="mb-2 text-sm font-medium">Advanced & Electives</div>
+          <div className="space-y-2 text-xs">
+            <div className="rounded bg-slate-50 px-3 py-2 flex items-center justify-between">
+              <div>
+                <div className="text-[0.55rem] uppercase text-slate-500">Additional 300-level ANTH</div>
+                <div>Beyond ANTH 301</div>
               </div>
-              <div className={cx("flex items-center justify-between rounded border px-2 py-1", progress.introSecondary ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600") }>
-                <span>ANTH 102 or ANTH/CLCV 103</span>
-                <span className="font-semibold">{progress.introSecondary ? "Completed" : "Pending"}</span>
+              <div className="text-base font-semibold text-slate-900">
+                {progress.extra300Count}/{progress.extra300Required}
+              </div>
+            </div>
+            <div className="rounded bg-slate-50 px-3 py-2 flex items-center justify-between">
+              <div>
+                <div className="text-[0.55rem] uppercase text-slate-500">Anthropology Electives</div>
+                <div>Upper-level courses to reach 9 units</div>
+              </div>
+              <div className="text-base font-semibold text-slate-900">
+                {progress.electivesCompleted}/{progress.electivesRequired}
               </div>
             </div>
           </div>
+        </div>
 
-          <div className="rounded-lg border p-3">
-            <div className="mb-2 text-sm font-medium">Core Seminars</div>
-            <div className="space-y-2 text-xs">
-              <div className={cx("flex items-center justify-between rounded border px-2 py-1", progress.midCourse ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600") }>
-                <span>ANTH 205</span>
-                <span className="font-semibold">{progress.midCourse ? "✓" : ""}</span>
-              </div>
-              <div className={cx("flex items-center justify-between rounded border px-2 py-1", progress.seminar ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600") }>
-                <span>ANTH 301</span>
-                <span className="font-semibold">{progress.seminar ? "✓" : ""}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-lg border p-3">
-            <div className="mb-2 text-sm font-medium">Advanced & Electives</div>
-            <div className="space-y-2 text-xs">
-              <div className="rounded bg-slate-50 px-3 py-2 flex items-center justify-between">
-                <div>
-                  <div className="text-[0.55rem] uppercase text-slate-500">Additional 300-level ANTH</div>
-                  <div>Beyond ANTH 301</div>
-                </div>
-                <div className="text-base font-semibold text-slate-900">
-                  {progress.extra300Count}/{progress.extra300Required}
-                </div>
-              </div>
-              <div className="rounded bg-slate-50 px-3 py-2 flex items-center justify-between">
-                <div>
-                  <div className="text-[0.55rem] uppercase text-slate-500">Anthropology Electives</div>
-                  <div>Upper-level courses to reach 9 units</div>
-                </div>
-                <div className="text-base font-semibold text-slate-900">
-                  {progress.electivesCompleted}/{progress.electivesRequired}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-lg border p-3">
-            <div className="mb-2 text-sm font-medium">Beyond the classroom</div>
-            <p className="text-xs text-slate-600">
-              Work with your advisor to document a significant academic experience (study abroad, internship, field school, research, etc.). Track completion in your program settings on the Planner tab.
-            </p>
-          </div>
+        <div className="rounded-lg border p-3">
+          <div className="mb-2 text-sm font-medium">Beyond the classroom</div>
+          <p className="text-xs text-slate-600">
+            Work with your advisor to document a significant academic experience (study abroad, internship, field school, research, etc.). Track completion in your program settings on the Planner tab.
+          </p>
         </div>
       </div>
     </div>
@@ -3250,49 +3355,42 @@ const renderAfrMajor = (majorReq, courses, majorValue, onChange) => {
   const totalTarget = majorReq.unitTarget || 9;
 
   return (
-    <div className="mt-4 space-y-4">
-      <div className="rounded-2xl border bg-white p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="text-sm font-semibold text-slate-900">Africana Studies Major</div>
-          <MajorSelect value={majorValue} onChange={onChange} />
+    <div className="space-y-4">
+      {renderMajorIntro(majorReq)}
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-lg border p-3">
+          <div className="mb-2 text-sm font-medium">Intro requirement</div>
+          <div className="text-xs text-slate-500 mb-1">{introLabel}</div>
+          <div className={cx(
+            "rounded border px-3 py-2 text-center text-sm font-semibold",
+            progress.introCompleted ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600"
+          )}>
+            {progress.introCompleted ? "Completed" : "Pending"}
+          </div>
         </div>
-
-        {renderMajorIntro(majorReq)}
-
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-lg border p-3">
-            <div className="mb-2 text-sm font-medium">Intro requirement</div>
-            <div className="text-xs text-slate-500 mb-1">{introLabel}</div>
-            <div className={cx(
-              "rounded border px-3 py-2 text-center text-sm font-semibold",
-              progress.introCompleted ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600"
-            )}>
-              {progress.introCompleted ? "Completed" : "Pending"}
-            </div>
-          </div>
-          <div className="rounded-lg border p-3">
-            <div className="mb-2 text-sm font-medium">300-level seminars</div>
-            <div className="rounded bg-slate-50 px-3 py-2 text-center">
-              <div className="text-[0.55rem] uppercase text-slate-500">AFR seminars</div>
-              <div className="text-base font-semibold text-slate-900">
-                {progress.level300Count}/{progress.level300Required}
-              </div>
-            </div>
-          </div>
-          <div className="rounded-lg border p-3">
-            <div className="mb-2 text-sm font-medium">Course count</div>
-            <div className="rounded bg-slate-50 px-3 py-2 text-center">
-              <div className="text-[0.55rem] uppercase text-slate-500">Units toward 9</div>
-              <div className="text-base font-semibold text-slate-900">
-                {progress.totalCourses}/{totalTarget}
-              </div>
+        <div className="rounded-lg border p-3">
+          <div className="mb-2 text-sm font-medium">300-level seminars</div>
+          <div className="rounded bg-slate-50 px-3 py-2 text-center">
+            <div className="text-[0.55rem] uppercase text-slate-500">AFR seminars</div>
+            <div className="text-base font-semibold text-slate-900">
+              {progress.level300Count}/{progress.level300Required}
             </div>
           </div>
         </div>
-
-        <div className="mt-4 rounded-xl border border-dashed px-3 py-2 text-xs text-slate-600">
-          Africana majors must attend the Africana Studies Colloquium (The Common Experience) every semester and work with their advisor to select or design a geographic/thematic concentration (Africa, Caribbean & Latin America, United States, or a custom plan).
+        <div className="rounded-lg border p-3">
+          <div className="mb-2 text-sm font-medium">Course count</div>
+          <div className="rounded bg-slate-50 px-3 py-2 text-center">
+            <div className="text-[0.55rem] uppercase text-slate-500">Units toward 9</div>
+            <div className="text-base font-semibold text-slate-900">
+              {progress.totalCourses}/{totalTarget}
+            </div>
+          </div>
         </div>
+      </div>
+
+      <div className="rounded-xl border border-dashed px-3 py-2 text-xs text-slate-600">
+        Africana majors must attend the Africana Studies Colloquium (The Common Experience) every semester and work with their advisor to select or design a geographic/thematic concentration (Africa, Caribbean & Latin America, United States, or a custom plan).
       </div>
     </div>
   );
@@ -3303,86 +3401,130 @@ const renderAmstMajor = (majorReq, courses, majorValue, onChange) => {
   const progress = computeAmstProgress(courses, struct);
 
   return (
-    <div className="mt-4 space-y-4">
-      <div className="rounded-2xl border bg-white p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="text-sm font-semibold text-slate-900">American Studies Major</div>
-          <MajorSelect value={majorValue} onChange={onChange} />
+    <div className="space-y-4">
+      {renderMajorIntro(majorReq)}
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-lg border p-3">
+          <div className="mb-2 text-sm font-medium">Introductory requirement</div>
+          <div className="text-xs text-slate-500 mb-1">{(struct.introOptions || []).join(" / ")}</div>
+          <div className={cx(
+            "rounded border px-3 py-2 text-center text-sm font-semibold",
+            progress.introCompleted ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600"
+          )}>
+            {progress.introCompleted ? "Completed" : "Pending"}
+          </div>
         </div>
-
-        {renderMajorIntro(majorReq)}
-
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-lg border p-3">
-            <div className="mb-2 text-sm font-medium">Introductory requirement</div>
-            <div className="text-xs text-slate-500 mb-1">{(struct.introOptions || []).join(" / ")}</div>
-            <div className={cx(
-              "rounded border px-3 py-2 text-center text-sm font-semibold",
-              progress.introCompleted ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600"
-            )}>
-              {progress.introCompleted ? "Completed" : "Pending"}
+        <div className="rounded-lg border p-3">
+          <div className="mb-2 text-sm font-medium">AMST courses</div>
+          <div className="space-y-1 text-xs">
+            <div className="flex items-center justify-between rounded bg-slate-50 px-2 py-1">
+              <span>Core AMST courses</span>
+              <span className="font-semibold">{progress.coreCount}/{progress.coreRequired}</span>
             </div>
-          </div>
-          <div className="rounded-lg border p-3">
-            <div className="mb-2 text-sm font-medium">AMST courses</div>
-            <div className="space-y-1 text-xs">
-              <div className="flex items-center justify-between rounded bg-slate-50 px-2 py-1">
-                <span>Core AMST courses</span>
-                <span className="font-semibold">{progress.coreCount}/{progress.coreRequired}</span>
-              </div>
-              <div className="flex items-center justify-between rounded bg-slate-50 px-2 py-1">
-                <span>300-level AMST</span>
-                <span className="font-semibold">{progress.level300Count}/{progress.level300Required}</span>
-              </div>
-            </div>
-          </div>
-          <div className="rounded-lg border p-3">
-            <div className="mb-2 text-sm font-medium">Electives & totals</div>
-            <div className="space-y-1 text-xs">
-              <div className="flex items-center justify-between rounded bg-slate-50 px-2 py-1">
-                <span>Electives</span>
-                <span className="font-semibold">{progress.electivesCount}/{progress.electivesRequired}</span>
-              </div>
-              <div className="flex items-center justify-between rounded bg-slate-50 px-2 py-1">
-                <span>Total courses</span>
-                <span className="font-semibold">{progress.totalCourses}/{majorReq.unitTarget || 9}</span>
-              </div>
+            <div className="flex items-center justify-between rounded bg-slate-50 px-2 py-1">
+              <span>300-level AMST</span>
+              <span className="font-semibold">{progress.level300Count}/{progress.level300Required}</span>
             </div>
           </div>
         </div>
-
-        <div className="mt-4 rounded-xl border border-dashed px-3 py-2 text-xs text-slate-600">
-          Work with your advisor to build a concentration of at least three related courses (for example, race/class/gender, comparative ethnic studies, Asian American Studies, Latinx Studies, or another coherent theme).
+        <div className="rounded-lg border p-3">
+          <div className="mb-2 text-sm font-medium">Electives & totals</div>
+          <div className="space-y-1 text-xs">
+            <div className="flex items-center justify-between rounded bg-slate-50 px-2 py-1">
+              <span>Electives</span>
+              <span className="font-semibold">{progress.electivesCount}/{progress.electivesRequired}</span>
+            </div>
+            <div className="flex items-center justify-between rounded bg-slate-50 px-2 py-1">
+              <span>Total courses</span>
+              <span className="font-semibold">{progress.totalCourses}/{majorReq.unitTarget || 9}</span>
+            </div>
+          </div>
         </div>
+      </div>
+
+      <div className="rounded-xl border border-dashed px-3 py-2 text-xs text-slate-600">
+        Work with your advisor to build a concentration of at least three related courses (for example, race/class/gender, comparative ethnic studies, Asian American Studies, Latinx Studies, or another coherent theme).
       </div>
     </div>
   );
 };
 
-const renderMajorPlannerCard = (majorValue, setMajorValue, cardTitle = "Major Planner") => {
+const renderMajorPlannerCard = (majorValue, setMajorValue, cardTitle = "Major Planner", options = {}) => {
+  const { onRemove } = options;
   const normalizedKey = resolveMajorConfigKey(majorValue);
   const majorReq = normalizedKey ? majorRequirements[normalizedKey] : null;
   const selectedOption = majorOptions.find(option => option.value === majorValue);
   const selectedLabel = selectedOption?.label || majorValue;
-  const placeholder = majorValue
-    ? `${selectedLabel || "This major"} is not configured yet.`
-    : "Choose a major from the dropdown to see its checklist.";
+  const placeholder = (() => {
+    if (!majorValue) return "Choose a major from the dropdown to see its checklist.";
+    if (!majorReq) return `${selectedLabel || "This major"} is not configured yet.`;
+    return majorReq.description || "";
+  })();
+  const matchingProgram = programSelections.find(program => program.value === majorValue);
+  const programCourses = matchingProgram ? getCoursesForProgram(matchingProgram.id) : [];
+  const requirementOptions = matchingProgram ? programRequirementOptionsMap[matchingProgram.id] || [] : [];
+  const requirementProgress = matchingProgram && requirementOptions.length
+    ? computeRequirementProgress(matchingProgram.id, requirementOptions, programCourses)
+    : { pct: 0, subtitle: matchingProgram ? "Mark requirements" : "Select a major" };
+  const relevantCourses = majorValue ? getMajorRelevantCourses(majorValue, allCourses, programSelections) : [];
+  const totalUnitsStat = majorValue ? getTotalUnitsStat(majorValue, relevantCourses) : null;
+  const fallbackUnits = (() => {
+    if (totalUnitsStat) return totalUnitsStat;
+    const target = majorValue ? getMajorRequirementTarget(majorValue) : 0;
+    if (target) return { earned: 0, target };
+    return null;
+  })();
+  const progressLabel = matchingProgram ? "Major progress" : "Progress";
+  const deriveRingStat = (stat) => {
+    if (stat?.target) {
+      const earned = stat.earned ?? 0;
+      const pct = stat.target ? clamp01(earned / stat.target) : 0;
+      return { pct, subtitle: `${formatUnitDisplay(earned)}/${stat.target} units` };
+    }
+    return { pct: requirementProgress.pct, subtitle: requirementProgress.subtitle };
+  };
+
+  const renderStatsBlock = (stat = totalUnitsStat || fallbackUnits) => {
+    const ringData = deriveRingStat(stat);
+    return (
+      <div className="mt-3 flex justify-center">
+        <RingStat pct={ringData.pct} label={progressLabel} subtitle={ringData.subtitle} />
+      </div>
+    );
+  };
+
+  const renderSummaryHeader = (showPlaceholderStats = false) => (
+    <>
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{cardTitle}</div>
+        <div className="flex items-center gap-3">
+          <MajorSelect value={majorValue} onChange={setMajorValue} />
+          {onRemove && (
+            <button
+              type="button"
+              onClick={onRemove}
+              className="text-xs font-semibold text-slate-500 underline-offset-2 hover:text-rose-600"
+              aria-label="Remove major planner"
+            >
+              Remove
+            </button>
+          )}
+        </div>
+      </div>
+      {placeholder && <p className="mt-1 text-sm text-slate-600">{placeholder}</p>}
+      {showPlaceholderStats ? renderStatsBlock(fallbackUnits) : majorReq && renderStatsBlock()}
+    </>
+  );
 
   if (!majorReq) {
     return (
-      <div className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{cardTitle}</div>
-            <p className="mt-1 text-sm text-slate-600">{placeholder}</p>
-          </div>
-          <MajorSelect value={majorValue} onChange={setMajorValue} />
-        </div>
+      <div className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm space-y-4">
+        {renderSummaryHeader(true)}
       </div>
     );
   }
 
-  const relevantCourses = getMajorRelevantCourses(majorValue, allCourses, programSelections);
   let content = null;
 
   if (majorValue === "Media Arts and Sciences") {
@@ -3424,88 +3566,81 @@ const renderMajorPlannerCard = (majorValue, setMajorValue, cardTitle = "Major Pl
       ) : [];
 
     content = (
-      <div className="mt-4 space-y-4">
-        <div className="rounded-2xl border bg-white p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="text-sm font-semibold text-slate-900">Major Requirements</div>
-            <MajorSelect value={majorValue} onChange={setMajorValue} />
-          </div>
+      <div className="space-y-4">
+        {renderMajorIntro(majorReq)}
 
-          {renderMajorIntro(majorReq)}
-
-          <div className="grid gap-4 md:grid-cols-3">
-            {majorReq.requiredCourses && majorReq.requiredCourses.length > 0 && (
-              <div className="rounded-lg border p-3">
-                <div className="mb-2 text-sm font-medium">Required Courses</div>
-                <div className="space-y-1 text-xs">
-                  {majorReq.requiredCourses.map(course => (
-                    <div key={course} className={cx(
-                      "flex items-center justify-between p-2 rounded",
-                      completedRequired.includes(course)
-                        ? "bg-green-50 text-green-700"
-                        : "bg-gray-50 text-gray-600"
-                    )}>
-                      <span>{course}</span>
-                      {completedRequired.includes(course) && <span>✓</span>}
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-2 text-xs text-slate-500">
-                  {completedRequired.length}/{majorReq.requiredCourses.length} completed
-                </div>
-              </div>
-            )}
-
+        <div className="grid gap-4 md:grid-cols-3">
+          {majorReq.requiredCourses && majorReq.requiredCourses.length > 0 && (
             <div className="rounded-lg border p-3">
-              <div className="mb-2 text-sm font-medium">Major Electives</div>
+              <div className="mb-2 text-sm font-medium">Required Courses</div>
               <div className="space-y-1 text-xs">
-                {majorElectives.map((course, idx) => (
-                  <div key={idx} className="p-2 bg-blue-50 text-blue-700 rounded">
-                    {course.code} - {course.title}
+                {majorReq.requiredCourses.map(course => (
+                  <div key={course} className={cx(
+                    "flex items-center justify-between p-2 rounded",
+                    completedRequired.includes(course)
+                      ? "bg-green-50 text-green-700"
+                      : "bg-gray-50 text-gray-600"
+                  )}>
+                    <span>{course}</span>
+                    {completedRequired.includes(course) && <span>✓</span>}
                   </div>
                 ))}
               </div>
               <div className="mt-2 text-xs text-slate-500">
-                {majorElectives.length}/{majorReq.electiveCourses} completed
+                {completedRequired.length}/{majorReq.requiredCourses.length} completed
               </div>
             </div>
+          )}
 
-            {majorReq.mathRequirements && (
-              <div className="rounded-lg border p-3">
-                <div className="mb-2 text-sm font-medium">Math Requirements</div>
-                <div className="space-y-1 text-xs">
-                  {majorReq.mathRequirements.map(course => (
-                    <div key={course} className={cx(
-                      "flex items-center justify-between p-2 rounded",
-                      completedMath.includes(course)
-                        ? "bg-green-50 text-green-700"
-                        : "bg-gray-50 text-gray-600"
-                    )}>
-                      <span>{course}</span>
-                      {completedMath.includes(course) && <span>✓</span>}
-                    </div>
-                  ))}
+          <div className="rounded-lg border p-3">
+            <div className="mb-2 text-sm font-medium">Major Electives</div>
+            <div className="space-y-1 text-xs">
+              {majorElectives.map((course, idx) => (
+                <div key={idx} className="p-2 bg-blue-50 text-blue-700 rounded">
+                  {course.code} - {course.title}
                 </div>
-                <div className="mt-2 text-xs text-slate-500">
-                  {completedMath.length}/{majorReq.mathRequirements.length} completed
-                </div>
-              </div>
-            )}
+              ))}
+            </div>
+            <div className="mt-2 text-xs text-slate-500">
+              {majorElectives.length}/{majorReq.electiveCourses} completed
+            </div>
           </div>
+
+          {majorReq.mathRequirements && (
+            <div className="rounded-lg border p-3">
+              <div className="mb-2 text-sm font-medium">Math Requirements</div>
+              <div className="space-y-1 text-xs">
+                {majorReq.mathRequirements.map(course => (
+                  <div key={course} className={cx(
+                    "flex items-center justify-between p-2 rounded",
+                    completedMath.includes(course)
+                      ? "bg-green-50 text-green-700"
+                      : "bg-gray-50 text-gray-600"
+                  )}>
+                    <span>{course}</span>
+                    {completedMath.includes(course) && <span>✓</span>}
+                  </div>
+                ))}
+              </div>
+              <div className="mt-2 text-xs text-slate-500">
+                {completedMath.length}/{majorReq.mathRequirements.length} completed
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-2">
-      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{cardTitle}</div>
+    <div className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm space-y-4">
+      {renderSummaryHeader(false)}
       {content}
     </div>
   );
 };
 
-const renderMinorPlannerCard = () => {
+const renderMinorPlannerCard = (onRemove) => {
   const normalizedMinorKey = resolveMinorConfigKey(selectedMinor);
   const selectedMinorOption = minorOptions.find(option => option.value === selectedMinor);
   const selectedMinorLabel = selectedMinorOption?.label || selectedMinor;
@@ -3513,12 +3648,24 @@ const renderMinorPlannerCard = () => {
   if (!selectedMinor) {
     return (
       <div className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Minor Planner</div>
             <p className="mt-1 text-sm text-slate-600">Choose a minor from the dropdown to start planning.</p>
           </div>
-          <MinorSelect value={selectedMinor} onChange={setSelectedMinor} />
+          <div className="flex items-center gap-3">
+            <MinorSelect value={selectedMinor} onChange={setSelectedMinor} />
+            {onRemove && (
+              <button
+                type="button"
+                onClick={onRemove}
+                className="text-xs font-semibold text-slate-500 underline-offset-2 hover:text-rose-600"
+                aria-label="Remove minor planner"
+              >
+                Remove
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -3530,9 +3677,21 @@ const renderMinorPlannerCard = () => {
 
   return (
     <div className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm">
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div className="text-sm font-semibold text-slate-900">{selectedMinorLabel || "Minor Planner"}</div>
-        <MinorSelect value={selectedMinor} onChange={setSelectedMinor} />
+        <div className="flex items-center gap-3">
+          <MinorSelect value={selectedMinor} onChange={setSelectedMinor} />
+          {onRemove && (
+            <button
+              type="button"
+              onClick={onRemove}
+              className="text-xs font-semibold text-slate-500 underline-offset-2 hover:text-rose-600"
+              aria-label="Remove minor planner"
+            >
+              Remove
+            </button>
+          )}
+        </div>
       </div>
       <p className="text-sm text-slate-600">
         This minor isn't configured yet, but you can still track it in your planner using custom notes.
@@ -3548,19 +3707,12 @@ const renderMajor = () => {
         {renderMajorPlannerCard(primaryMajor, setPrimaryMajor, "Primary Major")}
 
         {showSecondaryMajor ? (
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => {
-                setSecondaryMajor("");
-                setShowSecondaryMajor(false);
-              }}
-              className="absolute right-4 top-4 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow hover:bg-rose-50 hover:text-rose-600"
-            >
-              Remove
-            </button>
-            {renderMajorPlannerCard(secondaryMajor, setSecondaryMajor, "Second Major")}
-          </div>
+          renderMajorPlannerCard(secondaryMajor, setSecondaryMajor, "Second Major", {
+            onRemove: () => {
+              setSecondaryMajor("");
+              setShowSecondaryMajor(false);
+            },
+          })
         ) : (
           <button
             type="button"
@@ -3574,19 +3726,10 @@ const renderMajor = () => {
 
       <div className="space-y-3">
         {showMinorPlanner ? (
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedMinor("");
-                setShowMinorPlanner(false);
-              }}
-              className="absolute right-4 top-4 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow hover:bg-rose-50 hover:text-rose-600"
-            >
-              Remove
-            </button>
-            {renderMinorPlannerCard()}
-          </div>
+          renderMinorPlannerCard(() => {
+            setSelectedMinor("");
+            setShowMinorPlanner(false);
+          })
         ) : (
           <button
             type="button"

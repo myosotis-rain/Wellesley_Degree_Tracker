@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { requirementTagOptions, wellesleyDeptOptions } from "./data.js";
+import { useEffect, useRef, useState } from "react";
+import { requirementTagOptions, subjectOptions } from "./data.js";
 import { clamp01, cx, detectDepartmentFromCode } from "./utils.js";
 
 // ---- UI helpers ----
@@ -121,10 +121,23 @@ export const EditableYearLabel = ({ year, onUpdate }) => {
 };
 
 // ---- Term cards (left column) ----
-export const TermSummaryCard = ({ term, onOpen, onRemove, canRemove, onYearChange }) => {
+export const TermSummaryCard = ({ term, onOpen, onRemove, canRemove, onYearChange, status = "unspecified" }) => {
   const nonEmptySlots = term.slots.filter(s => s.code || s.title);
   const [isEditingYear, setIsEditingYear] = useState(false);
   const [tempYear, setTempYear] = useState(term.calendarYear);
+  const STATUS_PALETTE = {
+    current: { border: "#1B9DE5", background: "rgba(27,157,229,0.12)", pillBg: "#1B9DE5", pillText: "#ffffff" },
+    future: { border: "#e0e6f0", background: "#f7f8fb" },
+  };
+  const statusBorderClasses = {
+    past: "border-slate-200 bg-white",
+    current: "border-transparent",
+    future: "border-transparent",
+    unspecified: "border-slate-200 bg-white",
+  };
+  const statusLabels = {
+    current: "Current term",
+  };
 
   const handleYearSubmit = () => {
     if (tempYear !== term.calendarYear) {
@@ -142,11 +155,27 @@ export const TermSummaryCard = ({ term, onOpen, onRemove, canRemove, onYearChang
     <div className="relative group">
       <div
         onClick={onOpen}
-        className="group flex h-full w-full flex-col rounded-xl border bg-white px-3 py-2 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md cursor-pointer"
+        className={cx(
+          "group flex h-full w-full flex-col rounded-[14px] border px-3 py-2 text-left transition hover:-translate-y-0.5 hover:shadow-md cursor-pointer",
+          statusBorderClasses[status] || statusBorderClasses.unspecified
+        )}
+        style={
+          status === "current"
+            ? {
+                borderColor: STATUS_PALETTE.current.border,
+                backgroundColor: STATUS_PALETTE.current.background,
+              }
+            : status === "future"
+              ? {
+                  borderColor: STATUS_PALETTE.future.border,
+                  backgroundColor: STATUS_PALETTE.future.background,
+                }
+              : {}
+        }
       >
       <div className="mb-1 flex items-center justify-between">
         <div className="flex items-center gap-1">
-          <div className="text-[0.75rem] font-semibold text-slate-800">
+          <div className={cx("text-[0.75rem] font-semibold text-slate-800", status==="future" && "italic text-slate-500")}>
             {term.season || term.label.split(' ')[0]}
           </div>
           {isEditingYear ? (
@@ -190,11 +219,18 @@ export const TermSummaryCard = ({ term, onOpen, onRemove, canRemove, onYearChang
             </button>
           )}
         </div>
-        <span className="text-[0.65rem] text-slate-400 group-hover:text-indigo-500">
-          Edit
-        </span>
+        <div className="flex items-center gap-2 text-[0.65rem]">
+          {status === "current" && (
+            <span className="rounded-full bg-[#1B9DE5] px-2 py-0.5 text-[0.55rem] font-semibold uppercase tracking-wide text-white">
+              {statusLabels[status]}
+            </span>
+          )}
+          <span className="text-[0.65rem] text-slate-400 group-hover:text-indigo-500">
+            Edit
+          </span>
+        </div>
       </div>
-      <div className="space-y-1 text-[0.7rem]">
+      <div className={cx("space-y-1 text-[0.7rem]", status==="future" && "italic text-slate-500")}>
         {nonEmptySlots.length === 0 && (
           <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-2 py-2 text-[0.65rem] text-slate-400">
             No courses yet. Click to add.
@@ -250,6 +286,32 @@ export function TermDetailModal({
 }) {
   if (!term) return null;
 
+  const [showSavedIndicator, setShowSavedIndicator] = useState(false);
+  const savedIndicatorTimer = useRef(null);
+
+  useEffect(() => {
+    setShowSavedIndicator(false);
+    if (savedIndicatorTimer.current) {
+      clearTimeout(savedIndicatorTimer.current);
+      savedIndicatorTimer.current = null;
+    }
+  }, [term.id]);
+
+  useEffect(() => {
+    return () => {
+      if (savedIndicatorTimer.current) clearTimeout(savedIndicatorTimer.current);
+    };
+  }, []);
+
+  const markSaved = () => {
+    setShowSavedIndicator(true);
+    if (savedIndicatorTimer.current) clearTimeout(savedIndicatorTimer.current);
+    savedIndicatorTimer.current = setTimeout(() => {
+      setShowSavedIndicator(false);
+      savedIndicatorTimer.current = null;
+    }, 2000);
+  };
+
   const updateField = (slotIdx, field, value) => {
     updateSlot(term.id, slotIdx, (s) => {
       const updated = { ...s, [field]: value };
@@ -286,73 +348,11 @@ export function TermDetailModal({
             // Remove 300 tag if not 300-level
             updated.tags = updated.tags.filter(tag => tag !== "300");
           }
-
-          // Auto-detect common distribution requirements based on department
-          const autoTags = [];
-          switch (deptCode) {
-            case 'MATH':
-            case 'STAT':
-              if (!updated.tags.includes("QR")) autoTags.push("QR");
-              if (!updated.tags.includes("MM")) autoTags.push("MM");
-              break;
-            case 'ENG':
-            case 'ENGL':
-              if (!updated.tags.includes("LL")) autoTags.push("LL");
-              break;
-            case 'WRIT':
-              if (!updated.tags.includes("WRIT")) autoTags.push("WRIT");
-              break;
-            case 'BISC':
-            case 'BIOL':
-            case 'CHEM':
-            case 'PHYS':
-            case 'ASTR':
-            case 'GEOS':
-              if (!updated.tags.includes("NPS")) autoTags.push("NPS");
-              if (codeUpper.includes('LAB') || courseNum >= 200) {
-                if (!updated.tags.includes("LAB")) autoTags.push("LAB");
-              }
-              break;
-            case 'ECON':
-            case 'POLS':
-            case 'POL':
-            case 'SOC':
-            case 'ANTH':
-              if (!updated.tags.includes("SBA")) autoTags.push("SBA");
-              break;
-            case 'PHIL':
-            case 'REL':
-            case 'RELI':
-              if (!updated.tags.includes("REP")) autoTags.push("REP");
-              break;
-            case 'PSYC':
-            case 'COGS':
-              if (!updated.tags.includes("EC")) autoTags.push("EC");
-              break;
-            case 'HIST':
-              if (!updated.tags.includes("HST")) autoTags.push("HST");
-              break;
-            case 'ARTS':
-            case 'MUS':
-            case 'THST':
-            case 'CAMS':
-              if (!updated.tags.includes("ARTS")) autoTags.push("ARTS");
-              break;
-            case 'PE':
-              if (!updated.tags.includes("PE")) autoTags.push("PE");
-              break;
-          }
-
-          // Add auto-detected tags
-          autoTags.forEach(tag => {
-            if (!updated.tags.includes(tag)) {
-              updated.tags = [...updated.tags, tag];
-            }
-          });
         }
       }
       return updated;
     });
+    markSaved();
   };
 
   const toggleTag = (slotIdx, id) => {
@@ -360,13 +360,16 @@ export function TermDetailModal({
       const has = s.tags.includes(id);
       return { ...s, tags: has ? s.tags.filter(t => t !== id) : [...s.tags, id] };
     });
+    markSaved();
   };
 
   const toggleDept = (slotIdx, dept) => {
     updateSlot(term.id, slotIdx, (s) => {
       const has = s.depts.includes(dept);
-      return { ...s, depts: has ? s.depts.filter(d => d !== dept) : [...s.depts, dept] };
+      const newDepts = has ? s.depts.filter(d => d !== dept) : [dept, ...s.depts.filter(d => d !== dept)];
+      return { ...s, depts: newDepts };
     });
+    markSaved();
   };
 
   const toggleProgramAssignment = (slotIdx, programId) => {
@@ -379,6 +382,7 @@ export function TermDetailModal({
       }
       return { ...s, programs };
     });
+    markSaved();
   };
 
   const setProgramRequirement = (slotIdx, programId, requirementId) => {
@@ -388,25 +392,34 @@ export function TermDetailModal({
       programs[programId] = { ...(programs[programId] || {}), requirement: requirementId };
       return { ...s, programs };
     });
+    markSaved();
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="text-xs uppercase tracking-wide text-slate-500">
               Edit term
             </div>
             <div className="text-sm font-semibold text-slate-900">{term.label}</div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full border px-3 py-1 text-xs hover:bg-slate-50"
-          >
-            ✕ Close
-          </button>
+          <div className="flex items-center gap-3 text-xs text-slate-600">
+            {showSavedIndicator && (
+              <div className="flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[0.65rem] font-medium text-emerald-700">
+                <span aria-hidden="true">✓</span>
+                <span>Changes saved</span>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full border border-slate-300 px-3 py-1 font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Done
+            </button>
+          </div>
         </div>
 
         <div className="space-y-3 text-xs">
@@ -432,7 +445,10 @@ export function TermDetailModal({
                 </div>
                 <button
                   type="button"
-                  onClick={() => removeSlot(term.id, i)}
+                  onClick={() => {
+                    removeSlot(term.id, i);
+                    markSaved();
+                  }}
                   className="rounded-full border border-rose-200 px-2 py-0.5 text-[0.6rem] text-rose-600 hover:bg-rose-50"
                 >
                   Remove
@@ -495,7 +511,7 @@ export function TermDetailModal({
                 <div className="rounded-lg border bg-slate-50 px-2 py-2">
                   <div className="mb-1 flex items-center justify-between text-[0.7rem]">
                     <span className="font-semibold text-slate-700">
-                      Department(s)
+                      Subject(s)
                     </span>
                     <select
                       className="rounded-md border px-1 py-0.5 text-[0.65rem]"
@@ -514,24 +530,31 @@ export function TermDetailModal({
 
                   {slot.source === "Wellesley" ? (
                     <div className="flex max-h-28 flex-wrap gap-1 overflow-y-auto pr-1">
-                      {wellesleyDeptOptions.map(name => {
-                        const active = slot.depts.includes(name);
-                        return (
-                          <button
-                            key={name}
-                            type="button"
-                            onClick={() => toggleDept(i, name)}
-                            className={cx(
-                              "rounded-full border px-2 py-0.5 text-[0.65rem]",
-                              active
-                                ? "border-sky-600 bg-sky-600 text-white"
-                                : "border-slate-300 bg-white text-slate-700"
-                            )}
-                          >
-                            {name}
-                          </button>
-                        );
-                      })}
+                      {(() => {
+                        const activeSet = new Set(slot.depts);
+                        const sorted = [
+                          ...slot.depts.filter(name => subjectOptions.includes(name)),
+                          ...subjectOptions.filter(name => !activeSet.has(name)),
+                        ];
+                        return sorted.map(name => {
+                          const active = slot.depts.includes(name);
+                          return (
+                            <button
+                              key={name}
+                              type="button"
+                              onClick={() => toggleDept(i, name)}
+                              className={cx(
+                                "rounded-full border px-2 py-0.5 text-[0.65rem]",
+                                active
+                                  ? "border-sky-600 bg-sky-600 text-white"
+                                  : "border-slate-300 bg-white text-slate-700"
+                              )}
+                            >
+                              {name}
+                            </button>
+                          );
+                        });
+                      })()}
                     </div>
                   ) : (
                     <input
@@ -605,7 +628,10 @@ export function TermDetailModal({
         <div className="mt-4 flex justify-center">
           <button
             type="button"
-            onClick={() => addSlot(term.id)}
+            onClick={() => {
+              addSlot(term.id);
+              markSaved();
+            }}
             className="rounded-full bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
           >
             + Add course
