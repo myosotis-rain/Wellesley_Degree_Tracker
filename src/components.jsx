@@ -80,6 +80,7 @@ export const EditableYearLabel = ({ year, onUpdate }) => {
     return (
       <div className="flex items-center gap-1">
         <input
+          name="yearLabel"
           type="text"
           value={tempLabel}
           onChange={(e) => setTempLabel(e.target.value)}
@@ -181,6 +182,7 @@ export const TermSummaryCard = ({ term, onOpen, onRemove, canRemove, onYearChang
           {isEditingYear ? (
             <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
               <input
+                name="termYear"
                 type="number"
                 value={tempYear}
                 onChange={(e) => setTempYear(parseInt(e.target.value))}
@@ -457,18 +459,21 @@ export function TermDetailModal({
 
               <div className="grid gap-2 md:grid-cols-5">
                 <input
+                  name={`slot-${i}-code`}
                   className="rounded-lg border px-2 py-1 text-[0.7rem] md:col-span-1"
                   placeholder="Code (e.g. CS 111)"
                   value={slot.code}
                   onChange={(e) => updateField(i, "code", e.target.value)}
                 />
                 <input
+                  name={`slot-${i}-title`}
                   className="rounded-lg border px-2 py-1 text-[0.7rem] md:col-span-3"
                   placeholder="Title"
                   value={slot.title}
                   onChange={(e) => updateField(i, "title", e.target.value)}
                 />
                 <input
+                  name={`slot-${i}-credits`}
                   className="rounded-lg border px-2 py-1 text-[0.7rem] md:col-span-1"
                   placeholder="Units"
                   type="number"
@@ -559,6 +564,7 @@ export function TermDetailModal({
                     </div>
                   ) : (
                     <input
+                      name={`slot-${i}-dept`}
                       className="mt-1 w-full rounded-lg border px-2 py-1 text-[0.7rem]"
                       placeholder="Dept / program (e.g. MIT EECS)"
                       value={slot.depts[0] || ""}
@@ -581,6 +587,7 @@ export function TermDetailModal({
                           <div key={program.id} className="rounded bg-white p-2">
                             <label className="flex items-center gap-2">
                               <input
+                                name={`slot-${i}-program-${program.id}`}
                                 type="checkbox"
                                 checked={assigned}
                                 onChange={() => toggleProgramAssignment(i, program.id)}
@@ -618,6 +625,7 @@ export function TermDetailModal({
                     Notes
                   </div>
                   <textarea
+                    name={`slot-${i}-notes`}
                     className="h-20 w-full rounded-lg border px-2 py-1 text-[0.7rem]"
                     placeholder="Optional notes about why you're taking this, cross-reg info, etc."
                   />

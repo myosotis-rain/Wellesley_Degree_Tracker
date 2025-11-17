@@ -2408,6 +2408,7 @@ const getTotalUnitsStat = (majorName, courses = []) => {
           </div>
           <label className="flex items-center gap-2 text-[0.7rem]">
             <input
+              name="languageWaived"
               type="checkbox"
               checked={languageWaived}
               onChange={(e) => setLanguageWaived(e.target.checked)}
@@ -2863,6 +2864,7 @@ const renderCustomMajor = (majorValue, onChange, displayLabel = "Custom Major") 
         </p>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row">
           <input
+            name="customMajorName"
             type="text"
             value={newCustomMajorName}
             onChange={(e) => setNewCustomMajorName(e.target.value)}
@@ -2901,6 +2903,7 @@ const renderCustomMajor = (majorValue, onChange, displayLabel = "Custom Major") 
                   {editingCustomMajorId === major.id ? (
                     <>
                       <input
+                        name="editCustomMajorName"
                         type="text"
                         value={editingCustomMajorName}
                         onChange={(e) => setEditingCustomMajorName(e.target.value)}
@@ -2955,6 +2958,7 @@ const renderCustomMajor = (majorValue, onChange, displayLabel = "Custom Major") 
           <div key={idx} className="flex items-center gap-2">
             <span className="w-6 text-right text-xs text-slate-500">{idx + 1}.</span>
             <input
+              name={`customMajorRequirement-${idx}`}
               type="text"
               value={req}
               onChange={(e) => updateCustomRequirement(idx, e.target.value)}
@@ -3006,6 +3010,7 @@ const renderCustomMinor = (minorValue, onChange, displayLabel = "Custom Minor") 
           </p>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
             <input
+              name="customMinorName"
               type="text"
               value={newCustomMinorName}
               onChange={(e) => setNewCustomMinorName(e.target.value)}
@@ -3044,6 +3049,7 @@ const renderCustomMinor = (minorValue, onChange, displayLabel = "Custom Minor") 
                     {editingCustomMinorId === minor.id ? (
                       <>
                         <input
+                          name="editCustomMinorName"
                           type="text"
                           value={editingCustomMinorName}
                           onChange={(e) => setEditingCustomMinorName(e.target.value)}
@@ -3098,6 +3104,7 @@ const renderCustomMinor = (minorValue, onChange, displayLabel = "Custom Minor") 
             <div key={idx} className="flex items-center gap-2">
               <span className="w-6 text-right text-xs text-slate-500">{idx + 1}.</span>
               <input
+                name={`customMinorRequirement-${idx}`}
                 type="text"
                 value={req}
                 onChange={(e) => updateCustomMinorRequirement(idx, e.target.value)}
