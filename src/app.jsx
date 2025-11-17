@@ -1265,8 +1265,9 @@ export default function App() {
     return [...baseMinorOptions, ...customMinorOptions];
   }, [baseMinorOptions, customMinorOptions]);
 
-  const MajorSelect = ({ value, onChange, placeholder = "Select a major" }) => (
+  const MajorSelect = ({ value, onChange, placeholder = "Select a major", name = "majorSelect" }) => (
     <select
+      name={name}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className="rounded border px-3 py-1 text-sm"
@@ -1278,8 +1279,9 @@ export default function App() {
     </select>
   );
 
-  const MinorSelect = ({ value, onChange, placeholder = "Select a minor" }) => (
+  const MinorSelect = ({ value, onChange, placeholder = "Select a minor", name = "minorSelect" }) => (
     <select
+      name={name}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className="rounded border px-3 py-1 text-sm"
@@ -1954,6 +1956,7 @@ const getTotalUnitsStat = (majorName, courses = []) => {
                     </div>
                     <div className="flex flex-1 flex-col gap-2 sm:flex-row">
                       <select
+                        name={`${program.id}-type`}
                         className="w-full rounded-lg border px-2 py-1 sm:w-auto"
                         value={program.type}
                         onChange={(e) => updateProgramSelection(program.id, "type", e.target.value)}
@@ -1963,6 +1966,7 @@ const getTotalUnitsStat = (majorName, courses = []) => {
                         ))}
                       </select>
                       <select
+                        name={`${program.id}-program`}
                         className="w-full rounded-lg border px-2 py-1 sm:flex-1"
                         value={program.value}
                         onChange={(e) => updateProgramSelection(program.id, "value", e.target.value)}

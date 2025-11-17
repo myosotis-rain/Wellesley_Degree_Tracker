@@ -514,6 +514,7 @@ export function TermDetailModal({
                       Subject(s)
                     </span>
                     <select
+                      name={`slot-${i}-source`}
                       className="rounded-md border px-1 py-0.5 text-[0.65rem]"
                       value={slot.source}
                       onChange={(e) => updateField(i, "source", e.target.value)}
@@ -591,6 +592,7 @@ export function TermDetailModal({
                             </label>
                             {assigned && requirementOptions.length > 0 && (
                               <select
+                                name={`slot-${i}-requirement-${program.id}`}
                                 className="mt-2 w-full rounded border px-2 py-1 text-[0.65rem]"
                                 value={slot.programs?.[program.id]?.requirement || ""}
                                 onChange={(e) => setProgramRequirement(i, program.id, e.target.value)}
