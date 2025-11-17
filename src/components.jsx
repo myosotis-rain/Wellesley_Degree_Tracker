@@ -126,7 +126,7 @@ export const TermSummaryCard = ({ term, onOpen, onRemove, canRemove, onYearChang
   const [isEditingYear, setIsEditingYear] = useState(false);
   const [tempYear, setTempYear] = useState(term.calendarYear);
   const STATUS_PALETTE = {
-    current: { border: "#1B9DE5", background: "rgba(27,157,229,0.12)", pillBg: "#1B9DE5", pillText: "#ffffff" },
+    current: { border: "#a7d9fb", background: "rgba(27,157,229,0.12)", pillBg: "#1B9DE5", pillText: "#ffffff" },
     future: { border: "#e0e6f0", background: "#f7f8fb" },
   };
   const statusBorderClasses = {

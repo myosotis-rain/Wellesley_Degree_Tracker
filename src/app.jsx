@@ -1636,6 +1636,7 @@ const getTotalUnitsStat = (majorName, courses = []) => {
             <input
               id="start-year-input"
               type="number"
+              name="startYear"
               value={startYear}
               onChange={(e) => updateStartYear(parseInt(e.target.value, 10))}
               className="w-20 rounded border px-2 py-1"
@@ -1653,10 +1654,15 @@ const getTotalUnitsStat = (majorName, courses = []) => {
           <div className="mt-2 border-t border-slate-100 pt-2">
             <div className="flex flex-wrap gap-3 pb-1">
               <div className="flex items-center gap-1.5 whitespace-nowrap">
-                <span className="text-[0.75rem] font-semibold uppercase tracking-wide text-slate-500">
+                <label
+                  className="text-[0.75rem] font-semibold uppercase tracking-wide text-slate-500"
+                  htmlFor="program-1-select"
+                >
                   Program 1
-                </span>
+                </label>
                 <select
+                  id="program-1-select"
+                  name="program1"
                   className="min-w-[10rem] rounded border px-2 py-1 text-sm"
                   value={primaryMajor}
                   onChange={(e) => setPrimaryMajor(e.target.value)}
@@ -1668,10 +1674,15 @@ const getTotalUnitsStat = (majorName, courses = []) => {
                 </select>
               </div>
               <div className="flex items-center gap-1.5 whitespace-nowrap">
-                <span className="text-[0.75rem] font-semibold uppercase tracking-wide text-slate-500">
+                <label
+                  className="text-[0.75rem] font-semibold uppercase tracking-wide text-slate-500"
+                  htmlFor="program-2-mode"
+                >
                   Program 2
-                </span>
+                </label>
                 <select
+                  id="program-2-mode"
+                  name="program2Mode"
                   className="w-20 rounded border px-2 py-1 text-sm"
                   value={secondaryMode}
                   onChange={(e) => handleSecondaryModeChange(e.target.value)}
@@ -1682,6 +1693,8 @@ const getTotalUnitsStat = (majorName, courses = []) => {
                 </select>
                 {secondaryMode !== "None" && (
                   <select
+                    id="program-2-select"
+                    name="program2"
                     className="min-w-[10rem] rounded border px-2 py-1 text-sm"
                     value={secondaryMode === "Major" ? secondaryMajor : selectedMinor}
                     onChange={(e) => {
