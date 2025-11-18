@@ -740,8 +740,22 @@ const computeAmstProgress = (courses, structure = {}) => {
 };
 
 // ---- Main App ----
+const resetProgramState = (data) => {
+  if (!data || data.programStateMigrated) return data;
+  return {
+    ...data,
+    programSelections: DEFAULT_PROGRAM_SELECTIONS.map(entry => ({ ...entry })),
+    primaryMajor: "",
+    secondaryMajor: "",
+    showSecondaryMajor: false,
+    selectedMinor: "",
+    showMinorPlanner: false,
+    programStateMigrated: true,
+  };
+};
+
 export default function App() {
-  const savedDataRef = useRef(loadFromLocalStorage());
+  const savedDataRef = useRef(resetProgramState(loadFromLocalStorage()));
   const savedData = savedDataRef.current || null;
   const initialStartYear = savedData?.startYear || 2024;
   const rawProgramSelections = ensureProgramSelections(savedData?.programSelections);
@@ -986,6 +1000,7 @@ export default function App() {
       selectedMinor,
       showMinorPlanner,
       currentTermId,
+      programStateMigrated: true,
     };
     saveToLocalStorage(dataToSave);
   }, [terms, activeTab, startYear, yearLabels, languageWaived, programSelections, customMajorRequirements, customMajors, customMinorRequirements, customMinors, primaryMajor, secondaryMajor, showSecondaryMajor, selectedMinor, showMinorPlanner, currentTermId]);
