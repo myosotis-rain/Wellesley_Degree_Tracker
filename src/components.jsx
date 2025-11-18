@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { requirementTagOptions, subjectOptions } from "./data.js";
 import { clamp01, cx, detectDepartmentFromCode } from "./utils.js";
+import { LETTER_GRADE_OPTIONS, NON_LETTER_GRADE_OPTIONS } from "./constants/grades.js";
 
 // ---- UI helpers ----
 export const Pill = ({ children, className }) => (
@@ -457,7 +458,7 @@ export function TermDetailModal({
                 </button>
               </div>
 
-              <div className="grid gap-2 md:grid-cols-5">
+              <div className="grid gap-2 md:grid-cols-6">
                 <input
                   name={`slot-${i}-code`}
                   className="rounded-lg border px-2 py-1 text-[0.7rem] md:col-span-1"
@@ -488,6 +489,26 @@ export function TermDetailModal({
                   <span className="text-[0.65rem] text-slate-500 whitespace-nowrap">
                     {slot.credits === 1 ? "unit" : "units"}
                   </span>
+                </div>
+                <div className="md:col-span-1 flex items-center">
+                  <select
+                    name={`slot-${i}-grade`}
+                    className="w-full rounded-lg border px-2 py-1 text-[0.7rem]"
+                    value={slot.grade || ""}
+                    onChange={(e) => updateField(i, "grade", e.target.value)}
+                  >
+                    <option value="">Grade</option>
+                    <optgroup label="Letter grades">
+                      {LETTER_GRADE_OPTIONS.map(grade => (
+                        <option key={grade} value={grade}>{grade}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Non-letter grades">
+                      {NON_LETTER_GRADE_OPTIONS.map(grade => (
+                        <option key={grade} value={grade}>{grade}</option>
+                      ))}
+                    </optgroup>
+                  </select>
                 </div>
               </div>
 

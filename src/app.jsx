@@ -18,6 +18,11 @@ import {
   compactCourseCode,
   codesMatch,
 } from "./utils.js";
+import {
+  GPA_POINTS,
+  LETTER_GRADE_OPTIONS,
+  NON_LETTER_GRADE_OPTIONS,
+} from "./constants/grades.js";
 import { loadFromLocalStorage, saveToLocalStorage } from "./storage.js";
 import {
   EditableYearLabel,
@@ -74,6 +79,25 @@ const MIN_CUSTOM_MINOR_REQUIREMENTS = 6;
 const MAX_CUSTOM_MINOR_REQUIREMENTS = 12;
 const DEFAULT_CUSTOM_MINOR_COUNT = 6;
 const SUBJECT_NAME_SET = new Set(subjectOptions);
+
+
+const calculateGPA = (terms = []) => {
+  let totalCredits = 0;
+  let totalPoints = 0;
+  terms.forEach(term => {
+    (term.slots || []).forEach(slot => {
+      const grade = slot?.grade || "";
+      const points = GPA_POINTS[grade];
+      const credits = parseFloat(slot?.credits) || 0;
+      if (points !== undefined && credits > 0) {
+        totalCredits += credits;
+        totalPoints += points * credits;
+      }
+    });
+  });
+  const gpa = totalCredits > 0 ? totalPoints / totalCredits : 0;
+  return { gpa, totalCredits, totalPoints };
+};
 
 const isCustomMajorValue = (value = "") => {
   if (typeof value !== "string") return false;
@@ -377,6 +401,7 @@ export default function App() {
   const [editingCustomMinorId, setEditingCustomMinorId] = useState(null);
   const [editingCustomMinorName, setEditingCustomMinorName] = useState("");
   const [currentTermId, setCurrentTermId] = useState(savedData?.currentTermId || "");
+  const gpaSummary = useMemo(() => calculateGPA(terms), [terms]);
 
   const termById = (id) => terms.find(t => t.id === id) || null;
 
@@ -1113,6 +1138,9 @@ const getTotalUnitsStat = (majorName, courses = []) => {
 
   const renderPlan = () => {
     const secondaryMode = showSecondaryMajor ? "Major" : showMinorPlanner ? "Minor" : "None";
+    const gradedUnitsLabel = gpaSummary.totalCredits === 1
+      ? "1 graded unit"
+      : `${formatUnitDisplay(gpaSummary.totalCredits)} graded units`;
     const handleSecondaryModeChange = (mode) => {
       if (mode === "Major") {
         setShowSecondaryMajor(true);
@@ -1238,6 +1266,18 @@ const getTotalUnitsStat = (majorName, courses = []) => {
             </div>
           );
         })}
+
+        <div className="rounded-lg border bg-white px-3 py-2 text-sm">
+          <div className="text-[0.7rem] font-semibold uppercase tracking-wide text-slate-500">Predicted GPA</div>
+          <div className="text-2xl font-semibold text-slate-900">
+            {gpaSummary.totalCredits ? gpaSummary.gpa.toFixed(2) : "—"}
+          </div>
+          <p className="text-[0.7rem] text-slate-500">
+            {gpaSummary.totalCredits
+              ? `Based on ${gradedUnitsLabel} using Wellesley’s 4.0 scale.`
+              : "Enter course grades to see GPA."}
+          </p>
+        </div>
 
         <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-2xl border bg-white p-3 text-[0.75rem]">
@@ -1913,23 +1953,35 @@ const getTotalUnitsStat = (majorName, courses = []) => {
   );
 
   const renderCourses = () => {
-    const rows = [];
-    terms.forEach(t => {
-      t.slots.forEach(s => {
-        if (!(s.code || s.title)) return;
-        rows.push({ term: t.label, ...s });
+    const plannedRows = [];
+    const completedRows = [];
+    terms.forEach(term => {
+      (term.slots || []).forEach(slot => {
+        if (!(slot.code || slot.title)) return;
+        const row = { term: term.label, ...slot };
+        const grade = (slot.grade || "").toUpperCase();
+        const isLetter = LETTER_GRADE_OPTIONS.includes(grade);
+        const isCompleted = isLetter || grade === "D";
+        if (isCompleted) {
+          completedRows.push(row);
+        } else if (grade === "E") {
+          // Still counts toward GPA as 0 points, treat as completed
+          completedRows.push(row);
+        } else if (grade === "") {
+          plannedRows.push(row);
+        } else if (["CR", "P", "MCR", "MCRD", "MNCR"].includes(grade)) {
+          completedRows.push(row);
+        } else {
+          plannedRows.push(row);
+        }
       });
     });
 
-    return (
-      <div className="mt-4 rounded-2xl border bg-white p-4 text-xs">
-        <div className="mb-3 text-sm font-semibold text-slate-900">
-          Planned courses
-        </div>
+    const renderCourseTable = (rows, title) => (
+      <div className="rounded-2xl border bg-white p-4 text-xs">
+        <div className="mb-3 text-sm font-semibold text-slate-900">{title}</div>
         {rows.length === 0 ? (
-          <div className="text-[0.75rem] text-slate-500">
-            No courses yet. Add courses from the Planner tab.
-          </div>
+          <div className="text-[0.75rem] text-slate-500">No courses to show.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full border-collapse text-[0.75rem]">
@@ -1939,6 +1991,7 @@ const getTotalUnitsStat = (majorName, courses = []) => {
                   <th className="border-b px-2 py-1 text-left">Code</th>
                   <th className="border-b px-2 py-1 text-left">Title</th>
                   <th className="border-b px-2 py-1 text-left">Units</th>
+                  <th className="border-b px-2 py-1 text-left">Grade</th>
                   <th className="border-b px-2 py-1 text-left">Tags</th>
                   <th className="border-b px-2 py-1 text-left">Departments</th>
                 </tr>
@@ -1950,18 +2003,22 @@ const getTotalUnitsStat = (majorName, courses = []) => {
                     <td className="border-b px-2 py-1">{r.code}</td>
                     <td className="border-b px-2 py-1">{r.title}</td>
                     <td className="border-b px-2 py-1">{r.credits}</td>
-                    <td className="border-b px-2 py-1">
-                      {r.tags.join(", ")}
-                    </td>
-                    <td className="border-b px-2 py-1">
-                      {r.depts.join(" / ")}
-                    </td>
+                    <td className="border-b px-2 py-1">{r.grade || "—"}</td>
+                    <td className="border-b px-2 py-1">{r.tags.join(", ")}</td>
+                    <td className="border-b px-2 py-1">{r.depts.join(" / ")}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
+      </div>
+    );
+
+    return (
+      <div className="mt-4 space-y-4">
+        {renderCourseTable(plannedRows, "Planned / In-progress courses")}
+        {renderCourseTable(completedRows, "Completed courses")}
       </div>
     );
   };

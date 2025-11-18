@@ -27,6 +27,7 @@ export const newSlot = () => ({
   depts: [],
   source: "Wellesley",
   level: 100,
+  grade: "",
   programs: {},
 });
 
