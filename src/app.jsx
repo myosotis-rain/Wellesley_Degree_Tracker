@@ -120,10 +120,10 @@ const codesMatch = (codeA = "", codeB = "") => {
 };
 
 const ensureProgramSelections = (saved) => {
-  if (!Array.isArray(saved)) return DEFAULT_PROGRAM_SELECTIONS;
+  if (!Array.isArray(saved)) return DEFAULT_PROGRAM_SELECTIONS.map(entry => ({ ...entry }));
   return DEFAULT_PROGRAM_SELECTIONS.map(template => {
     const match = saved.find(item => item.id === template.id);
-    if (!match) return template;
+    if (!match) return { ...template };
     const rawType = match.type === "Second Major" ? "Major" : match.type;
     const normalizedType = PROGRAM_TYPE_OPTIONS.includes(rawType) ? rawType : template.type;
     return { ...template, ...match, type: normalizedType };
@@ -744,7 +744,32 @@ export default function App() {
   const savedDataRef = useRef(loadFromLocalStorage());
   const savedData = savedDataRef.current || null;
   const initialStartYear = savedData?.startYear || 2024;
-  const initialProgramSelections = ensureProgramSelections(savedData?.programSelections);
+  const rawProgramSelections = ensureProgramSelections(savedData?.programSelections);
+  const alignInitialProgramSelections = (selections, snapshot) => {
+    const next = selections.map(entry => ({ ...entry }));
+    const primarySlot = next.find(entry => entry.id === "programA");
+    if (primarySlot) {
+      if (snapshot?.primaryMajor) {
+        primarySlot.type = "Major";
+        primarySlot.value = snapshot.primaryMajor;
+      }
+    }
+    const secondarySlot = next.find(entry => entry.id === "programB");
+    if (secondarySlot) {
+      if (snapshot?.showSecondaryMajor && snapshot?.secondaryMajor) {
+        secondarySlot.type = "Major";
+        secondarySlot.value = snapshot.secondaryMajor;
+      } else if (snapshot?.showMinorPlanner && snapshot?.selectedMinor) {
+        secondarySlot.type = "Minor";
+        secondarySlot.value = snapshot.selectedMinor;
+      } else if (!snapshot?.programSelections) {
+        secondarySlot.type = "None";
+        secondarySlot.value = "";
+      }
+    }
+    return next;
+  };
+  const initialProgramSelections = alignInitialProgramSelections(rawProgramSelections, savedData);
   const getInitialCustomMinorRequirements = () => {
     const savedList = Array.isArray(savedData?.customMinorRequirements)
       ? savedData.customMinorRequirements.slice(0, MAX_CUSTOM_MINOR_REQUIREMENTS)
@@ -758,11 +783,30 @@ export default function App() {
   const [activeTab, setActiveTab] = useState(savedData?.activeTab || "plan");
   const [startYear, setStartYear] = useState(initialStartYear);
   const [programSelections, setProgramSelections] = useState(initialProgramSelections);
-  const [primaryMajor, setPrimaryMajor] = useState(savedData?.primaryMajor || "");
-  const [secondaryMajor, setSecondaryMajor] = useState(savedData?.secondaryMajor || "");
-  const [showSecondaryMajor, setShowSecondaryMajor] = useState(savedData?.showSecondaryMajor || false);
-  const [selectedMinor, setSelectedMinor] = useState(savedData?.selectedMinor || "");
-  const [showMinorPlanner, setShowMinorPlanner] = useState(savedData?.showMinorPlanner || false);
+  const initialPrimaryMajor =
+    savedData?.primaryMajor ||
+    (initialProgramSelections.find(entry => entry.id === "programA" && entry.type === "Major")?.value || "");
+  const initialSecondarySlot = initialProgramSelections.find(entry => entry.id === "programB");
+  const initialSecondaryMajor =
+    savedData?.secondaryMajor ||
+    (initialSecondarySlot?.type === "Major" ? initialSecondarySlot.value || "" : "");
+  const initialSelectedMinor =
+    savedData?.selectedMinor ||
+    (initialSecondarySlot?.type === "Minor" ? initialSecondarySlot.value || "" : "");
+  const initialShowSecondaryMajor =
+    typeof savedData?.showSecondaryMajor === "boolean"
+      ? savedData.showSecondaryMajor
+      : initialSecondarySlot?.type === "Major" && !!initialSecondarySlot.value;
+  const initialShowMinorPlanner =
+    typeof savedData?.showMinorPlanner === "boolean"
+      ? savedData.showMinorPlanner
+      : initialSecondarySlot?.type === "Minor" && !!initialSecondarySlot.value;
+
+  const [primaryMajor, setPrimaryMajor] = useState(initialPrimaryMajor);
+  const [secondaryMajor, setSecondaryMajor] = useState(initialSecondaryMajor);
+  const [showSecondaryMajor, setShowSecondaryMajor] = useState(initialShowSecondaryMajor);
+  const [selectedMinor, setSelectedMinor] = useState(initialSelectedMinor);
+  const [showMinorPlanner, setShowMinorPlanner] = useState(initialShowMinorPlanner);
   const [yearLabels, setYearLabels] = useState(
     savedData?.yearLabels || Object.fromEntries(defaultYears.map((y) => [y.id, y.label]))
   );
