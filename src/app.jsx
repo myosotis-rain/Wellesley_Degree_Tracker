@@ -23,19 +23,17 @@ import {
   TermDetailModal,
   TermSummaryCard,
 } from "./components.jsx";
+import {
+  PROGRAM_TYPE_OPTIONS,
+  resetProgramState,
+  useProgramState,
+} from "./hooks/useProgramState.js";
 
 const TABS = [
   { id: "plan", label: "Planner" },
   { id: "reqs", label: "Requirements" },
   { id: "courses", label: "Courses" },
   { id: "major", label: "Major / Minor" },
-];
-
-const PROGRAM_TYPE_OPTIONS = ["Major", "Minor", "None"];
-
-const DEFAULT_PROGRAM_SELECTIONS = [
-  { id: "programA", label: "Program 1", type: "Major", value: "", experienceComplete: false },
-  { id: "programB", label: "Program 2", type: "None", value: "", experienceComplete: false },
 ];
 
 const DETAILED_MAJOR_VALUES = new Set([
@@ -117,17 +115,6 @@ const compactCourseCode = (code = "") => normalizeCourseCode(code).replace(/\s+/
 const codesMatch = (codeA = "", codeB = "") => {
   if (!codeA || !codeB) return false;
   return compactCourseCode(codeA) === compactCourseCode(codeB);
-};
-
-const ensureProgramSelections = (saved) => {
-  if (!Array.isArray(saved)) return DEFAULT_PROGRAM_SELECTIONS.map(entry => ({ ...entry }));
-  return DEFAULT_PROGRAM_SELECTIONS.map(template => {
-    const match = saved.find(item => item.id === template.id);
-    if (!match) return { ...template };
-    const rawType = match.type === "Second Major" ? "Major" : match.type;
-    const normalizedType = PROGRAM_TYPE_OPTIONS.includes(rawType) ? rawType : template.type;
-    return { ...template, ...match, type: normalizedType };
-  });
 };
 
 const programDepartment = (programName) => {
@@ -740,50 +727,10 @@ const computeAmstProgress = (courses, structure = {}) => {
 };
 
 // ---- Main App ----
-const resetProgramState = (data) => {
-  if (!data || data.programStateMigrated) return data;
-  return {
-    ...data,
-    programSelections: DEFAULT_PROGRAM_SELECTIONS.map(entry => ({ ...entry })),
-    primaryMajor: "",
-    secondaryMajor: "",
-    showSecondaryMajor: false,
-    selectedMinor: "",
-    showMinorPlanner: false,
-    programStateMigrated: true,
-  };
-};
-
 export default function App() {
   const savedDataRef = useRef(resetProgramState(loadFromLocalStorage()));
   const savedData = savedDataRef.current || null;
   const initialStartYear = savedData?.startYear || 2024;
-  const rawProgramSelections = ensureProgramSelections(savedData?.programSelections);
-  const alignInitialProgramSelections = (selections, snapshot) => {
-    const next = selections.map(entry => ({ ...entry }));
-    const primarySlot = next.find(entry => entry.id === "programA");
-    if (primarySlot) {
-      if (snapshot?.primaryMajor) {
-        primarySlot.type = "Major";
-        primarySlot.value = snapshot.primaryMajor;
-      }
-    }
-    const secondarySlot = next.find(entry => entry.id === "programB");
-    if (secondarySlot) {
-      if (snapshot?.showSecondaryMajor && snapshot?.secondaryMajor) {
-        secondarySlot.type = "Major";
-        secondarySlot.value = snapshot.secondaryMajor;
-      } else if (snapshot?.showMinorPlanner && snapshot?.selectedMinor) {
-        secondarySlot.type = "Minor";
-        secondarySlot.value = snapshot.selectedMinor;
-      } else if (!snapshot?.programSelections) {
-        secondarySlot.type = "None";
-        secondarySlot.value = "";
-      }
-    }
-    return next;
-  };
-  const initialProgramSelections = alignInitialProgramSelections(rawProgramSelections, savedData);
   const getInitialCustomMinorRequirements = () => {
     const savedList = Array.isArray(savedData?.customMinorRequirements)
       ? savedData.customMinorRequirements.slice(0, MAX_CUSTOM_MINOR_REQUIREMENTS)
@@ -796,31 +743,20 @@ export default function App() {
   const [activeTermId, setActiveTermId] = useState(null);
   const [activeTab, setActiveTab] = useState(savedData?.activeTab || "plan");
   const [startYear, setStartYear] = useState(initialStartYear);
-  const [programSelections, setProgramSelections] = useState(initialProgramSelections);
-  const initialPrimaryMajor =
-    savedData?.primaryMajor ||
-    (initialProgramSelections.find(entry => entry.id === "programA" && entry.type === "Major")?.value || "");
-  const initialSecondarySlot = initialProgramSelections.find(entry => entry.id === "programB");
-  const initialSecondaryMajor =
-    savedData?.secondaryMajor ||
-    (initialSecondarySlot?.type === "Major" ? initialSecondarySlot.value || "" : "");
-  const initialSelectedMinor =
-    savedData?.selectedMinor ||
-    (initialSecondarySlot?.type === "Minor" ? initialSecondarySlot.value || "" : "");
-  const initialShowSecondaryMajor =
-    typeof savedData?.showSecondaryMajor === "boolean"
-      ? savedData.showSecondaryMajor
-      : initialSecondarySlot?.type === "Major" && !!initialSecondarySlot.value;
-  const initialShowMinorPlanner =
-    typeof savedData?.showMinorPlanner === "boolean"
-      ? savedData.showMinorPlanner
-      : initialSecondarySlot?.type === "Minor" && !!initialSecondarySlot.value;
-
-  const [primaryMajor, setPrimaryMajor] = useState(initialPrimaryMajor);
-  const [secondaryMajor, setSecondaryMajor] = useState(initialSecondaryMajor);
-  const [showSecondaryMajor, setShowSecondaryMajor] = useState(initialShowSecondaryMajor);
-  const [selectedMinor, setSelectedMinor] = useState(initialSelectedMinor);
-  const [showMinorPlanner, setShowMinorPlanner] = useState(initialShowMinorPlanner);
+  const {
+    programSelections,
+    setProgramSelections,
+    primaryMajor,
+    setPrimaryMajor,
+    secondaryMajor,
+    setSecondaryMajor,
+    showSecondaryMajor,
+    setShowSecondaryMajor,
+    selectedMinor,
+    setSelectedMinor,
+    showMinorPlanner,
+    setShowMinorPlanner,
+  } = useProgramState(savedData);
   const [yearLabels, setYearLabels] = useState(
     savedData?.yearLabels || Object.fromEntries(defaultYears.map((y) => [y.id, y.label]))
   );
@@ -840,6 +776,33 @@ export default function App() {
   const [currentTermId, setCurrentTermId] = useState(savedData?.currentTermId || "");
 
   const termById = (id) => terms.find(t => t.id === id) || null;
+
+  const sortedTerms = useMemo(() => {
+    const seasonOrder = { Fall: 1, Winter: 2, Spring: 3, Summer: 4 };
+    return [...terms]
+      .filter(Boolean)
+      .sort((a, b) => {
+        if (a.year !== b.year) return a.year - b.year;
+        return (seasonOrder[a.season] || 0) - (seasonOrder[b.season] || 0);
+      });
+  }, [terms]);
+
+  const sortedTermIds = useMemo(() => sortedTerms.map(term => term.id), [sortedTerms]);
+
+  const termStatuses = useMemo(() => {
+    const statusMap = {};
+    const currentIndex = currentTermId ? sortedTermIds.indexOf(currentTermId) : -1;
+    sortedTermIds.forEach((id, idx) => {
+      let status = "unspecified";
+      if (currentIndex >= 0) {
+        if (idx < currentIndex) status = "past";
+        else if (idx === currentIndex) status = "current";
+        else status = "future";
+      }
+      statusMap[id] = status;
+    });
+    return statusMap;
+  }, [sortedTermIds, currentTermId]);
 
   const updateCustomRequirement = (index, value) => {
     setCustomMajorRequirements(prev =>
@@ -1004,84 +967,6 @@ export default function App() {
     };
     saveToLocalStorage(dataToSave);
   }, [terms, activeTab, startYear, yearLabels, languageWaived, programSelections, customMajorRequirements, customMajors, customMinorRequirements, customMinors, primaryMajor, secondaryMajor, showSecondaryMajor, selectedMinor, showMinorPlanner, currentTermId]);
-
-  useEffect(() => {
-    const primaryProgram = programSelections.find(program => program.id === "programA") || null;
-    const secondaryProgram = programSelections.find(program => program.id === "programB") || null;
-
-    const nextPrimary = primaryProgram?.type === "Major" ? primaryProgram.value || "" : "";
-    if (primaryMajor !== nextPrimary) {
-      setPrimaryMajor(nextPrimary);
-    }
-
-    if (secondaryProgram?.type === "Major") {
-      if (!showSecondaryMajor) setShowSecondaryMajor(true);
-      if (showMinorPlanner) setShowMinorPlanner(false);
-      const nextSecondary = secondaryProgram.value || "";
-      if (secondaryMajor !== nextSecondary) {
-        setSecondaryMajor(nextSecondary);
-      }
-      if (selectedMinor) setSelectedMinor("");
-    } else if (secondaryProgram?.type === "Minor") {
-      if (!showMinorPlanner) setShowMinorPlanner(true);
-      if (showSecondaryMajor) setShowSecondaryMajor(false);
-      const nextMinor = secondaryProgram.value || "";
-      if (selectedMinor !== nextMinor) {
-        setSelectedMinor(nextMinor);
-      }
-      if (secondaryMajor) setSecondaryMajor("");
-    } else {
-      if (showSecondaryMajor) setShowSecondaryMajor(false);
-      if (secondaryMajor) setSecondaryMajor("");
-      if (showMinorPlanner) setShowMinorPlanner(false);
-      if (selectedMinor) setSelectedMinor("");
-    }
-  }, [programSelections]);
-
-  useEffect(() => {
-    setProgramSelections(prev => {
-      if (!Array.isArray(prev) || prev.length === 0) return prev;
-      const next = prev.map(entry => ({ ...entry }));
-      let changed = false;
-
-      const assignSlot = (index, updates) => {
-        const template = DEFAULT_PROGRAM_SELECTIONS[index] || {};
-        const current = next[index] ? { ...next[index] } : { ...template };
-        const updated = { ...current, ...updates };
-        if (
-          current.type !== updated.type ||
-          current.value !== updated.value
-        ) {
-          next[index] = updated;
-          changed = true;
-        }
-      };
-
-      assignSlot(0, {
-        type: primaryMajor ? "Major" : "None",
-        value: primaryMajor || "",
-      });
-
-      if (showSecondaryMajor) {
-        assignSlot(1, {
-          type: "Major",
-          value: secondaryMajor || "",
-        });
-      } else if (showMinorPlanner) {
-        assignSlot(1, {
-          type: "Minor",
-          value: selectedMinor || "",
-        });
-      } else {
-        assignSlot(1, {
-          type: "None",
-          value: "",
-        });
-      }
-
-      return changed ? next : prev;
-    });
-  }, [primaryMajor, secondaryMajor, showSecondaryMajor, selectedMinor, showMinorPlanner]);
 
   const updateSlot = (termId, slotIdx, updater) => {
     setTerms(prev =>
@@ -1654,26 +1539,6 @@ const getTotalUnitsStat = (majorName, courses = []) => {
   };
 
   const renderPlan = () => {
-    const seasonOrder = { Fall: 1, Winter: 2, Spring: 3, Summer: 4 };
-    const sortedTerms = [...terms]
-      .filter(Boolean)
-      .sort((a, b) => {
-        if (a.year !== b.year) return a.year - b.year;
-        return (seasonOrder[a.season] || 0) - (seasonOrder[b.season] || 0);
-      });
-    const sortedTermIds = sortedTerms.map(term => term.id);
-    const currentIndex = currentTermId ? sortedTermIds.indexOf(currentTermId) : -1;
-    const termStatuses = {};
-    sortedTermIds.forEach((id, idx) => {
-      let status = "unspecified";
-      if (currentIndex >= 0) {
-        if (idx < currentIndex) status = "past";
-        else if (idx === currentIndex) status = "current";
-        else status = "future";
-      }
-      termStatuses[id] = status;
-    });
-
     const secondaryMode = showSecondaryMajor ? "Major" : showMinorPlanner ? "Minor" : "None";
     const handleSecondaryModeChange = (mode) => {
       if (mode === "Major") {
@@ -1687,7 +1552,6 @@ const getTotalUnitsStat = (majorName, courses = []) => {
         setShowMinorPlanner(false);
       }
     };
-
     return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
       <div className="space-y-4">
@@ -1745,18 +1609,18 @@ const getTotalUnitsStat = (majorName, courses = []) => {
                 >
                   Program 2
                 </label>
-                <select
-                  id="program-2-mode"
-                  name="program2Mode"
-                  autoComplete="off"
-                  className="w-20 rounded border px-2 py-1 text-sm"
-                  value={secondaryMode}
-                  onChange={(e) => handleSecondaryModeChange(e.target.value)}
-                >
-                  <option value="None">None</option>
-                  <option value="Major">Major</option>
-                  <option value="Minor">Minor</option>
-                </select>
+              <select
+                id="program-2-mode"
+                name="program2Mode"
+                autoComplete="off"
+                className="w-20 rounded border px-2 py-1 text-sm"
+                value={secondaryMode}
+                onChange={(e) => handleSecondaryModeChange(e.target.value)}
+              >
+                <option value="None">None</option>
+                <option value="Major">Major</option>
+                <option value="Minor">Minor</option>
+              </select>
                 {secondaryMode !== "None" && (
                   <select
                     id="program-2-select"
