@@ -1268,6 +1268,7 @@ export default function App() {
   const MajorSelect = ({ value, onChange, placeholder = "Select a major", name = "majorSelect" }) => (
     <select
       name={name}
+      autoComplete="off"
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className="rounded border px-3 py-1 text-sm"
@@ -1282,6 +1283,7 @@ export default function App() {
   const MinorSelect = ({ value, onChange, placeholder = "Select a minor", name = "minorSelect" }) => (
     <select
       name={name}
+      autoComplete="off"
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className="rounded border px-3 py-1 text-sm"
@@ -1639,6 +1641,7 @@ const getTotalUnitsStat = (majorName, courses = []) => {
               id="start-year-input"
               type="number"
               name="startYear"
+              autoComplete="off"
               value={startYear}
               onChange={(e) => updateStartYear(parseInt(e.target.value, 10))}
               className="w-20 rounded border px-2 py-1"
@@ -1665,6 +1668,7 @@ const getTotalUnitsStat = (majorName, courses = []) => {
                 <select
                   id="program-1-select"
                   name="program1"
+                  autoComplete="off"
                   className="min-w-[10rem] rounded border px-2 py-1 text-sm"
                   value={primaryMajor}
                   onChange={(e) => setPrimaryMajor(e.target.value)}
@@ -1685,6 +1689,7 @@ const getTotalUnitsStat = (majorName, courses = []) => {
                 <select
                   id="program-2-mode"
                   name="program2Mode"
+                  autoComplete="off"
                   className="w-20 rounded border px-2 py-1 text-sm"
                   value={secondaryMode}
                   onChange={(e) => handleSecondaryModeChange(e.target.value)}
@@ -1697,6 +1702,7 @@ const getTotalUnitsStat = (majorName, courses = []) => {
                   <select
                     id="program-2-select"
                     name="program2"
+                    autoComplete="off"
                     className="min-w-[10rem] rounded border px-2 py-1 text-sm"
                     value={secondaryMode === "Major" ? secondaryMajor : selectedMinor}
                     onChange={(e) => {
@@ -1957,6 +1963,7 @@ const getTotalUnitsStat = (majorName, courses = []) => {
                     <div className="flex flex-1 flex-col gap-2 sm:flex-row">
                       <select
                         name={`${program.id}-type`}
+                        autoComplete="off"
                         className="w-full rounded-lg border px-2 py-1 sm:w-auto"
                         value={program.type}
                         onChange={(e) => updateProgramSelection(program.id, "type", e.target.value)}
@@ -1967,6 +1974,7 @@ const getTotalUnitsStat = (majorName, courses = []) => {
                       </select>
                       <select
                         name={`${program.id}-program`}
+                        autoComplete="off"
                         className="w-full rounded-lg border px-2 py-1 sm:flex-1"
                         value={program.value}
                         onChange={(e) => updateProgramSelection(program.id, "value", e.target.value)}
