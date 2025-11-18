@@ -35,7 +35,7 @@ export const MajorIntro = ({ majorReq }) => {
 };
 
 export const SectionCard = ({ title, children, className = "" }) => (
-  <div className={`rounded-lg border p-3 ${className}`.trim()}>
+  <div className={`rounded-2xl border border-slate-200 bg-white/90 p-3 shadow-sm ${className}`.trim()}>
     {title && <div className="mb-2 text-sm font-medium">{title}</div>}
     {children}
   </div>

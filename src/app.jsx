@@ -49,6 +49,19 @@ import {
   computeEnglishProgress,
   computeAfrProgress,
   computeAmstProgress,
+  computeArchProgress,
+  computeStudioProgress,
+  computeArtHistoryProgress,
+  computeBiocProgress,
+  computeChphProgress,
+  computeChemProgress,
+  computeCamsProgress,
+  computeClassicsProgress,
+  computeCpltProgress,
+  computeDsProgress,
+  computeEalcProgress,
+  computeEasProgress,
+  computeEducationProgress,
 } from "./majors/progress.js";
 import { getMajorRenderer } from "./majors/renderers/index.js";
 
@@ -69,6 +82,19 @@ const DETAILED_MAJOR_VALUES = new Set([
   "Africana Studies",
   "American Studies",
   "Anthropology",
+  "Architecture",
+  "Studio Art",
+  "Biochemistry",
+  "Chemical Physics",
+  "Chemistry",
+  "Cinema and Media Studies",
+  "Classics",
+  "Cognitive and Linguistic Sciences",
+  "Comparative Literary Studies",
+  "Data Science",
+  "East Asian Languages and Cultures",
+  "East Asian Studies",
+  "Education Studies",
 ]);
 
 const MAX_CUSTOM_MAJOR_REQUIREMENTS = 15;
@@ -161,6 +187,11 @@ const calculateGPA = (terms = []) => {
 const isCustomMajorValue = (value = "") => {
   if (typeof value !== "string") return false;
   return value === "Custom Major" || value.startsWith(CUSTOM_MAJOR_VALUE_PREFIX);
+};
+
+const isCustomMajorOptionValue = (value = "") => {
+  if (typeof value !== "string") return false;
+  return value.startsWith(CUSTOM_MAJOR_VALUE_PREFIX);
 };
 
 const resolveMajorConfigKey = (value = "") => {
@@ -264,6 +295,104 @@ const summarizeProgramProgress = (programName, courses, programMeta = {}) => {
       config,
       isAmst: true,
       amstProgress: computeAmstProgress(courses, config.amerStructure),
+    };
+  }
+  if (config.archStructure) {
+    return {
+      config,
+      isArchitecture: true,
+      archProgress: computeArchProgress(courses, config.archStructure),
+    };
+  }
+  if (config.studioStructure) {
+    return {
+      config,
+      isStudioArt: true,
+      studioProgress: computeStudioProgress(courses, config.studioStructure),
+    };
+  }
+  if (config.artHistoryStructure) {
+    return {
+      config,
+      isArtHistory: true,
+      artHistoryProgress: computeArtHistoryProgress(courses, config.artHistoryStructure),
+    };
+  }
+  if (config.biocStructure) {
+    return {
+      config,
+      isBiochemistry: true,
+      biocProgress: computeBiocProgress(courses, config.biocStructure),
+    };
+  }
+  if (config.chphStructure) {
+    return {
+      config,
+      isChemicalPhysics: true,
+      chphProgress: computeChphProgress(courses, config.chphStructure),
+    };
+  }
+  if (config.chemStructure) {
+    return {
+      config,
+      isChemistry: true,
+      chemistryProgress: computeChemProgress(courses, config.chemStructure),
+    };
+  }
+  if (config.camsStructure) {
+    return {
+      config,
+      isCams: true,
+      camsProgress: computeCamsProgress(courses, config.camsStructure),
+    };
+  }
+  if (config.classicsStructure) {
+    return {
+      config,
+      isClassics: true,
+      classicsProgress: computeClassicsProgress(courses, config.classicsStructure),
+    };
+  }
+  if (config.clscStructure) {
+    return {
+      config,
+      isClsc: true,
+      clscProgress: computeClscProgress(courses, config.clscStructure),
+    };
+  }
+  if (config.cpltStructure) {
+    return {
+      config,
+      isComparativeLit: true,
+      cpltProgress: computeCpltProgress(courses, config.cpltStructure),
+    };
+  }
+  if (config.dsStructure) {
+    return {
+      config,
+      isDataScience: true,
+      dsProgress: computeDsProgress(courses, config.dsStructure),
+    };
+  }
+  if (config.easStructure) {
+    return {
+      config,
+      isEastAsianStudies: true,
+      easProgress: computeEasProgress(courses, config.easStructure),
+    };
+  }
+  if (config.ealcStructure) {
+    return {
+      config,
+      isEalc: true,
+      ealcProgress: computeEalcProgress(courses, config.ealcStructure),
+    };
+  }
+  if (config.educationStructure) {
+    return {
+      config,
+      isEducationStudies: true,
+      educationProgress: computeEducationProgress(courses, config.educationStructure),
     };
   }
 
@@ -389,6 +518,17 @@ const programRequirementOptionSets = {
     { id: "econ-300", label: "300-level ECON", required: 2 },
     { id: "econ-elective", label: "Economics / QR260 / STAT260 / QR309 / STAT309", required: 1 },
   ],
+  "Comparative Literary Studies": [
+    { id: "cplt-pre1900", label: "Pre-1900 Course", required: 1 },
+    { id: "cplt-concentration", label: "Concentration Courses", required: 3 },
+    { id: "cplt-concentration-300", label: "Concentration 300-level", required: 1 },
+  ],
+  "Education Studies": [
+    { id: "educ-core", label: "Core (EDUC 120/214/215/216)", required: 1 },
+    { id: "educ-research", label: "Education Research & Theory", required: 4 },
+    { id: "educ-capstone", label: "Capstone / Thesis", required: 1 },
+    { id: "educ-300", label: "300-level EDUC Courses", required: 2 },
+  ],
   "Custom Major": [],
 };
 
@@ -475,6 +615,26 @@ export default function App() {
   useEffect(() => {
     setStartYearDraft(String(startYear));
   }, [startYear]);
+
+  useEffect(() => {
+    if (!isCustomMajorOptionValue(primaryMajor)) return;
+    const exists = customMajors.some(
+      (item) => createCustomMajorOptionValue(item.id) === primaryMajor
+    );
+    if (!exists) {
+      setPrimaryMajor("Custom Major");
+    }
+  }, [primaryMajor, customMajors]);
+
+  useEffect(() => {
+    if (!isCustomMajorOptionValue(secondaryMajor)) return;
+    const exists = customMajors.some(
+      (item) => createCustomMajorOptionValue(item.id) === secondaryMajor
+    );
+    if (!exists) {
+      setSecondaryMajor("Custom Major");
+    }
+  }, [secondaryMajor, customMajors]);
 
   const termById = (id) => terms.find(t => t.id === id) || null;
 
@@ -626,14 +786,23 @@ export default function App() {
 
   const removeCustomMajor = (majorId) => {
     const valueToRemove = createCustomMajorOptionValue(majorId);
+    if (primaryMajor === valueToRemove) {
+      setPrimaryMajor("Custom Major");
+    }
+    if (secondaryMajor === valueToRemove) {
+      setSecondaryMajor("Custom Major");
+    }
     setCustomMajors(prev => prev.filter(item => item.id !== majorId));
     setProgramSelections(prev =>
-      prev.map(program =>
-        program.value === valueToRemove ? { ...program, value: "" } : program
-      )
+      prev.map(program => {
+        if (program.value === valueToRemove) {
+          return { ...program, value: "Custom Major" };
+        }
+        return program;
+      })
     );
     setPrimaryMajor(prev => (prev === valueToRemove ? "Custom Major" : prev));
-    setSecondaryMajor(prev => (prev === valueToRemove ? "" : prev));
+    setSecondaryMajor(prev => (prev === valueToRemove ? "Custom Major" : prev));
     setCustomMajorRequirementMap(prev => {
       if (!prev[valueToRemove]) return prev;
       const next = { ...prev };
@@ -1910,6 +2079,387 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                       })()}
                     </div>
                   )}
+                  {program.type !== "None" && program.value && summary && summary.isComparativeLit && summary.cpltProgress && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      {renderProgramRing()}
+                      {(() => {
+                        const pre1900Assigned = countAssignedRequirement(programCourses, program.id, "cplt-pre1900");
+                        const concentrationAssigned = countAssignedRequirement(programCourses, program.id, "cplt-concentration");
+                        const concentration300Assigned = countAssignedRequirement(programCourses, program.id, "cplt-concentration-300");
+                        const cards = [
+                          { label: "CPLT 180", value: summary.cpltProgress.requiredCourses.find(r => r.code === "CPLT 180")?.completed ? "✓" : "Pending" },
+                          { label: "CPLT 375", value: summary.cpltProgress.requiredCourses.find(r => r.code === "CPLT 375")?.completed ? "✓" : "Pending" },
+                          { label: "CPLT units", value: `${summary.cpltProgress.cpltCount}/${summary.cpltProgress.minCpltCourses}` },
+                          { label: "300-level CPLT", value: summary.cpltProgress.cplt300Count },
+                          { label: "Pre-1900", value: `${pre1900Assigned}/1` },
+                          { label: "Concentration", value: `${concentrationAssigned}/3` },
+                          { label: "Concentration 300-level", value: `${concentration300Assigned}/1` },
+                        ];
+                        return (
+                          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                            {cards.map(card => (
+                              <div key={card.label} className="rounded border px-3 py-2 h-full text-center">
+                                <div className="text-[0.55rem] uppercase text-slate-500">{card.label}</div>
+                                <div className="text-base font-semibold text-slate-900">{card.value}</div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                  {program.type !== "None" && program.value && summary && summary.isArchitecture && summary.archProgress && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      {renderProgramRing()}
+                      {(() => {
+                        const arch = summary.archProgress;
+                        const cards = [
+                          { label: "Foundation", value: `${arch.foundation.filter(step => step.completed).length}/${arch.foundation.length || 0}` },
+                          { label: "200-level", value: `${arch.intermediateCount}/${arch.intermediateRequired}` },
+                          { label: "300-level", value: `${arch.advancedCount}/${arch.advancedRequired}` },
+                          { label: "Allied electives", value: `${arch.additionalCount}/${arch.additionalRequired}` },
+                        ];
+                        return (
+                          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                            {cards.map(card => (
+                              <div key={card.label} className="rounded border px-3 py-2 h-full">
+                                <ProgramStatRow
+                                  label={card.label}
+                                  value={card.value}
+                                  labelClass="text-[0.55rem] uppercase text-slate-500"
+                                  valueClass="text-base font-semibold text-slate-900"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                  {program.type !== "None" && program.value && summary && summary.isStudioArt && summary.studioProgress && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      {renderProgramRing()}
+                      {(() => {
+                        const studio = summary.studioProgress;
+                        const cards = [
+                          { label: "Foundations", value: `${studio.foundation.filter(step => step.completed).length}/${studio.foundation.length || 0}` },
+                          { label: "200+ studio", value: `${studio.upperStudioCount}/${studio.upperStudioRequired}` },
+                          { label: "300-level studio", value: `${studio.level300Count}/${studio.level300Required}` },
+                          { label: "Capstone", value: `${studio.capstone.filter(item => item.completed).length}/${studio.capstone.length || 0}` },
+                        ];
+                        return (
+                          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                            {cards.map(card => (
+                              <div key={card.label} className="rounded border px-3 py-2 h-full">
+                                <ProgramStatRow
+                                  label={card.label}
+                                  value={card.value}
+                                  labelClass="text-[0.55rem] uppercase text-slate-500"
+                                  valueClass="text-base font-semibold text-slate-900"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                  {program.type !== "None" && program.value && summary && summary.isArtHistory && summary.artHistoryProgress && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      {renderProgramRing()}
+                      {(() => {
+                        const artHist = summary.artHistoryProgress;
+                        const regionCards = [
+                          { label: "Americas", complete: artHist.amerCount >= 1 },
+                          { label: "Africa/MidEast/Europe", complete: artHist.emeaCount >= 1 },
+                          { label: "Asia", complete: artHist.asiaCount >= 1 },
+                        ];
+                        const periodCards = [
+                          { label: "Pre-1800", value: `${artHist.pre1800Count}/3` },
+                          { label: "Post-1800", value: `${artHist.post1800Count}/1` },
+                          { label: "300-level", value: `${artHist.level300Count}/${artHist.level300Required}` },
+                        ];
+                        return (
+                          <div className="space-y-2">
+                            <div className="grid gap-2 sm:grid-cols-3">
+                              {regionCards.map(card => (
+                                <div key={card.label} className="rounded border px-3 py-2 text-center">
+                                  <div className="text-[0.55rem] uppercase text-slate-500">{card.label}</div>
+                                  <div className="text-base font-semibold text-slate-900">{card.complete ? "✓" : "0/1"}</div>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="grid gap-2 sm:grid-cols-3">
+                              {periodCards.map(card => (
+                                <div key={card.label} className="rounded border px-3 py-2 text-center">
+                                  <div className="text-[0.55rem] uppercase text-slate-500">{card.label}</div>
+                                  <div className="text-base font-semibold text-slate-900">{card.value}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                  {program.type !== "None" && program.value && summary && summary.isBiochemistry && summary.biocProgress && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      {renderProgramRing()}
+                      {(() => {
+                        const bioc = summary.biocProgress;
+                        const cards = [
+                          { label: "Intro sciences", value: `${bioc.foundation.filter(step => step.completed).length}/${bioc.foundation.length || 0}` },
+                          { label: "BISC 200-level", value: `${bioc.bisc200.filter(step => step.completed).length}/${bioc.bisc200.length || 0}` },
+                          { label: "CHEM 200-level", value: `${bioc.chem200.filter(step => step.completed).length}/${bioc.chem200.length || 0}` },
+                          { label: "BISC 300-level", value: `${bioc.bisc300Count}/${bioc.bisc300Required}` },
+                          { label: "CHEM 331", value: bioc.chem331Completed ? "✓" : "Pending" },
+                          { label: "CHEM/BIOC 300", value: `${bioc.chem300ElectiveCount}/${bioc.chem300ElectiveRequired}` },
+                          { label: "Lab-designated", value: `${bioc.labCount}/${bioc.labRequired}` },
+                        ];
+                        return (
+                          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                            {cards.map(card => (
+                              <div key={card.label} className="rounded border px-3 py-2 h-full text-center">
+                                <div className="text-[0.55rem] uppercase text-slate-500">{card.label}</div>
+                                <div className="text-base font-semibold text-slate-900">{card.value}</div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                  {program.type !== "None" && program.value && summary && summary.isChemicalPhysics && summary.chphProgress && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      {renderProgramRing()}
+                      {(() => {
+                        const chph = summary.chphProgress;
+                        const cards = [
+                          { label: "General chemistry", value: chph.generalChem.completed ? "✓" : "Pending" },
+                          { label: "Intro PHYS", value: `${chph.physicsIntroCount}/${chph.physicsIntroTotal}` },
+                          { label: "Core sequence", value: `${chph.requiredCourses.filter(item => item.completed).length}/${chph.requiredCourses.length}` },
+                          { label: "Lab/Flex", value: `${chph.labChoice.filter(item => item.completed).length}/${chph.labChoice.length || 1}` },
+                          { label: "CHEM 334/335", value: chph.chemAdvancedCompleted ? "✓" : "Pending" },
+                          { label: "PHYS elective", value: chph.physicsElectiveCompleted ? "✓" : "Pending" },
+                        ];
+                        return (
+                          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                            {cards.map(card => (
+                              <div key={card.label} className="rounded border px-3 py-2 h-full text-center">
+                                <div className="text-[0.55rem] uppercase text-slate-500">{card.label}</div>
+                                <div className="text-base font-semibold text-slate-900">{card.value}</div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                  {program.type !== "None" && program.value && summary && summary.isDataScience && summary.dsProgress && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      {renderProgramRing()}
+                      {(() => {
+                        const ds = summary.dsProgress;
+                        const foundationComplete = ds.foundation.filter(step => step.completed).length;
+                        const cards = [
+                          { label: "Foundations", value: `${foundationComplete}/${ds.foundation.length || 0}` },
+                          { label: "CS electives", value: `${ds.csElectiveCount}/1` },
+                          { label: "STAT electives", value: `${ds.statElectiveCount}/1` },
+                          { label: "Capstone", value: ds.hasCapstone ? "✓" : "Pending" },
+                        ];
+                        return (
+                          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                            {cards.map(card => (
+                              <div key={card.label} className="rounded border px-3 py-2 h-full text-center">
+                                <div className="text-[0.55rem] uppercase text-slate-500">{card.label}</div>
+                                <div className="text-base font-semibold text-slate-900">{card.value}</div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                  {program.type !== "None" && program.value && summary && summary.isEalc && summary.ealcProgress && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      {renderProgramRing()}
+                      {(() => {
+                        const ealc = summary.ealcProgress;
+                        const cards = [
+                          { label: "Gateway", value: ealc.gatewayCompleted ? "✓" : "Pending" },
+                          { label: "Non-language", value: `${ealc.nonLanguageCount}/${ealc.nonLanguageRequired}` },
+                          { label: "Survey", value: `${ealc.surveyCount}/${ealc.surveyRequired}` },
+                          { label: "300-level", value: `${ealc.level300Count}/${ealc.level300Required}` },
+                        ];
+                        return (
+                          <div className="space-y-2">
+                            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                              {cards.map(card => (
+                                <div key={card.label} className="rounded border px-3 py-2 h-full text-center">
+                                  <div className="text-[0.55rem] uppercase text-slate-500">{card.label}</div>
+                                  <div className="text-base font-semibold text-slate-900">{card.value}</div>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="rounded border px-3 py-2 text-center">
+                              <div className="text-[0.55rem] uppercase text-slate-500">Language tracks</div>
+                              <div className="text-[0.7rem] text-slate-600">
+                                {ealc.trackResults.map(track => (
+                                  <span key={track.id} className={cx("mx-1 font-semibold", track.completed ? "text-green-600" : "text-slate-500") }>
+                                    {track.label}: {track.completed ? "✓" : "Pending"}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                  {program.type !== "None" && program.value && summary && summary.isEastAsianStudies && summary.easProgress && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      {renderProgramRing()}
+                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                        <div className="rounded border px-3 py-2 text-center">
+                          <div className="text-[0.55rem] uppercase text-slate-500">Language units</div>
+                          <div className="text-base font-semibold text-slate-900">
+                            {summary.easProgress.languageCount}/{summary.easProgress.languageRequired}
+                          </div>
+                        </div>
+                        <div className="rounded border px-3 py-2 text-center">
+                          <div className="text-[0.55rem] uppercase text-slate-500">Non-language units</div>
+                          <div className="text-base font-semibold text-slate-900">
+                            {summary.easProgress.nonLanguageCount}/{summary.easProgress.nonLanguageRequired}
+                          </div>
+                        </div>
+                        <div className="rounded border px-3 py-2 text-center">
+                          <div className="text-[0.55rem] uppercase text-slate-500">Humanities</div>
+                          <div className="text-base font-semibold text-slate-900">
+                            {summary.easProgress.humanitiesCount}/{summary.easProgress.humanitiesRequired}
+                          </div>
+                        </div>
+                        <div className="rounded border px-3 py-2 text-center">
+                          <div className="text-[0.55rem] uppercase text-slate-500">History/Social Science</div>
+                          <div className="text-base font-semibold text-slate-900">
+                            {summary.easProgress.historyCount}/{summary.easProgress.historyRequired}
+                          </div>
+                        </div>
+                        <div className="rounded border px-3 py-2 text-center">
+                          <div className="text-[0.55rem] uppercase text-slate-500">300-level non-language</div>
+                          <div className="text-base font-semibold text-slate-900">
+                            {summary.easProgress.nonLang300Count}/{summary.easProgress.nonLang300Required}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {program.type !== "None" && program.value && summary && summary.isEducationStudies && summary.educationProgress && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      {renderProgramRing()}
+                      {(() => {
+                        const education = summary.educationProgress;
+                        const cards = [
+                          { label: "Core course", value: education.coreCompleted ? (education.coreFulfilledBy || "✓") : "Pending" },
+                          { label: "Research & Theory", value: `${education.researchTheoryCount}/${education.researchTheoryRequired}` },
+                          { label: "Capstone", value: education.capstoneCompleted ? (education.capstoneFulfilledBy || "✓") : "Pending" },
+                          { label: "EDUC 300-level", value: `${education.education300Count}/${education.education300Required}` },
+                          { label: "Curriculum (max 3)", value: education.curriculumCount },
+                          { label: "Electives (max 3)", value: education.electiveCount },
+                          { label: "Independent study limit", value: `${education.independentStudyCount}/${education.independentStudyLimit}` },
+                          { label: "Education units", value: `${education.totalCourses}/${education.totalRequired}` },
+                        ];
+                        return (
+                          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                            {cards.map(card => (
+                              <div key={card.label} className="rounded border px-3 py-2 h-full text-center">
+                                <div className="text-[0.55rem] uppercase text-slate-500">{card.label}</div>
+                                <div className="text-base font-semibold text-slate-900">{card.value}</div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                  {program.type !== "None" && program.value && summary && summary.isChemistry && summary.chemistryProgress && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      {renderProgramRing()}
+                      {(() => {
+                        const chem = summary.chemistryProgress;
+                        const cards = [
+                          { label: "Intro sequence", value: `${chem.foundation.filter(step => step.completed).length}/${chem.foundation.length || 0}` },
+                          { label: "Core", value: `${chem.coreCourses.filter(step => step.completed).length}/${chem.coreCourses.length || 0}` },
+                          { label: "Depth electives", value: `${chem.electiveCount}/${chem.electiveRequired}` },
+                          { label: "Extra 300-level", value: `${chem.additional300Count}/${chem.additional300Required}` },
+                          { label: "Research", value: chem.researchCompleted ? "✓" : "Pending" },
+                          { label: "Physics", value: chem.physicsMet ? "✓ PHYS 106/108" : "Pending" },
+                          { label: "Physics intro", value: chem.physicsIntroMet ? "✓" : "Pending" },
+                          { label: "Calculus", value: chem.mathMet ? "✓" : "Pending" },
+                        ];
+                        return (
+                          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                            {cards.map(card => (
+                              <div key={card.label} className="rounded border px-3 py-2 h-full text-center">
+                                <div className="text-[0.55rem] uppercase text-slate-500">{card.label}</div>
+                                <div className="text-base font-semibold text-slate-900">{card.value}</div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                  {program.type !== "None" && program.value && summary && summary.isCams && summary.camsProgress && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      {renderProgramRing()}
+                      {(() => {
+                        const cams = summary.camsProgress;
+                        const cards = [
+                          { label: "Core (201/202)", value: `${cams.foundation.filter(step => step.completed).length}/${cams.foundation.length || 0}` },
+                          { label: "Production", value: cams.productionCompleted ? "✓" : "Pending" },
+                          { label: "Core electives", value: `${cams.coreMatches}/${cams.coreRequired}` },
+                          { label: "300-level CAMS", value: `${cams.level300Matches}/${cams.level300Required}` },
+                          { label: "Additional CAMS", value: `${cams.additionalCamsMatches}/${cams.additionalCamsRequired}` },
+                        ];
+                        return (
+                          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                            {cards.map(card => (
+                              <div key={card.label} className="rounded border px-3 py-2 h-full text-center">
+                                <div className="text-[0.55rem] uppercase text-slate-500">{card.label}</div>
+                                <div className="text-base font-semibold text-slate-900">{card.value}</div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                  {program.type !== "None" && program.value && summary && summary.isClassics && summary.classicsProgress && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      {renderProgramRing()}
+                      {(() => {
+                        const classics = summary.classicsProgress;
+                        const cards = [
+                          { label: "Greek", value: classics.greekCount },
+                          { label: "Latin", value: classics.latinCount },
+                          { label: "Language total", value: `${classics.languageTotal}/${classics.languageTotalRequired}` },
+                          { label: "300-level language", value: `${classics.lang300Count}/${classics.languageMinUpper}` },
+                          { label: "Civ courses", value: `${classics.civCount}/${classics.civRequired}` },
+                          { label: "CLCV focus", value: `${classics.civClcvCount}/${classics.civClcvRequired}` },
+                        ];
+                        return (
+                          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                            {cards.map(card => (
+                              <div key={card.label} className="rounded border px-3 py-2 h-full text-center">
+                                <div className="text-[0.55rem] uppercase text-slate-500">{card.label}</div>
+                                <div className="text-base font-semibold text-slate-900">{card.value}</div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
 
                   {program.type !== "None" && program.value && summary && summary.isAfr && summary.afrProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
@@ -2018,7 +2568,7 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                     </div>
                   )}
 
-                  {program.type !== "None" && program.value && summary && !summary.isSpecial && !summary.isCS && !summary.isBio && !summary.isAnthro && !summary.isEnglish && !summary.isAfr && !summary.isAmst && (
+                  {program.type !== "None" && program.value && summary && !summary.isSpecial && !summary.isCS && !summary.isBio && !summary.isAnthro && !summary.isEnglish && !summary.isAfr && !summary.isAmst && !summary.isArchitecture && !summary.isStudioArt && !summary.isArtHistory && !summary.isBiochemistry && !summary.isChemicalPhysics && !summary.isChemistry && !summary.isCams && !summary.isClassics && !summary.isClsc && !summary.isComparativeLit && !summary.isDataScience && !summary.isEastAsianStudies && !summary.isEducationStudies && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
                       {renderProgramRing()}
                       {(() => {

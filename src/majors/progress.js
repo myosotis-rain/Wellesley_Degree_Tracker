@@ -332,6 +332,567 @@ export const computeEconProgress = (courses = [], econStructure = {}) => {
   };
 };
 
+export const computeArchProgress = (courses = [], archStructure = {}) => {
+  const normalizeCode = (course) => normalizeCourseCode(course.code);
+  const foundation = (archStructure.foundation || []).map(block => {
+    const match = courses.find(course => (block.options || []).some(opt => codesMatch(course.code, opt)));
+    return {
+      id: block.id,
+      label: block.label,
+      options: block.options || [],
+      completed: Boolean(match),
+      fulfilledBy: match?.code || null,
+    };
+  });
+
+  const departmentOf = (course) => detectDepartmentFromCode(course.code);
+  const levelOf = (course) => course.level || 0;
+
+  const isDeptIncluded = (course, allowed = []) => allowed.includes(departmentOf(course));
+
+  const intermediateCourses = courses.filter(course => {
+    const lvl = levelOf(course);
+    if (lvl < 200 || lvl >= 300) return false;
+    return isDeptIncluded(course, archStructure.intermediateDepartments || []);
+  });
+
+  const advancedCourses = courses.filter(course => {
+    if (levelOf(course) < 300) return false;
+    return isDeptIncluded(course, archStructure.advancedDepartments || []);
+  });
+
+  const advancedWellesleyCount = advancedCourses.filter(course =>
+    isDeptIncluded(course, archStructure.advancedWellesleyDepartments || [])
+  ).length;
+
+  const additionalCourses = courses.filter(course =>
+    isDeptIncluded(course, archStructure.additionalDepartments || [])
+  );
+
+  const totalUnits = courses.reduce((sum, course) => sum + Number(course.credits || 0), 0);
+
+  return {
+    foundation,
+    intermediateCount: intermediateCourses.length,
+    intermediateRequired: archStructure.intermediateRequired || 2,
+    advancedCount: advancedCourses.length,
+    advancedRequired: archStructure.advancedRequired || 2,
+    advancedWellesleyCount,
+    additionalCount: additionalCourses.length,
+    additionalRequired: archStructure.additionalRequired || 2,
+    totalUnits,
+    totalUnitsRequired: archStructure.totalUnitsRequired || 11,
+  };
+};
+
+export const computeStudioProgress = (courses = [], studioStructure = {}) => {
+  const foundation = (studioStructure.foundation || []).map(block => {
+    const options = block.options || [];
+    const match = options.length
+      ? courses.find(course => options.some(opt => codesMatch(course.code, opt)))
+      : null;
+    return {
+      id: block.id,
+      label: block.label,
+      options,
+      completed: Boolean(match),
+      fulfilledBy: match?.code || null,
+    };
+  });
+
+  const levelOf = (course) => course.level || 0;
+  const prefix = (course) => (course.code || "").split(/\s+/)[0];
+  const allowedStudio = new Set(studioStructure.allowedStudioDepartments || []);
+
+  const eligibleStudioCourses = courses.filter(course =>
+    allowedStudio.has(detectDepartmentFromCode(course.code))
+  );
+  const upperStudioCourses = eligibleStudioCourses.filter(course => levelOf(course) >= 200);
+  const level300Studio = eligibleStudioCourses.filter(course => levelOf(course) >= 300);
+
+  const capstoneCourses = (studioStructure.capstoneCourses || []).map(code => ({
+    code,
+    completed: courses.some(course => codesMatch(course.code, code)),
+  }));
+
+  return {
+    foundation,
+    upperStudioCount: upperStudioCourses.length,
+    upperStudioRequired: studioStructure.upperStudioRequired || 5,
+    level300Count: level300Studio.length,
+    level300Required: studioStructure.level300Required || 2,
+    capstone: capstoneCourses,
+  };
+};
+
+export const computeArtHistoryProgress = (courses = [], artHistoryStructure = {}) => {
+  const foundation = (artHistoryStructure.foundation || []).map(block => {
+    const match = courses.find(course => (block.options || []).some(opt => codesMatch(course.code, opt)));
+    return {
+      id: block.id,
+      label: block.label,
+      options: block.options || [],
+      completed: Boolean(match),
+      fulfilledBy: match?.code || null,
+    };
+  });
+
+  const countMatches = (courseList = []) =>
+    courses.filter(course => courseList.some(code => codesMatch(course.code, code))).length;
+
+  const amerCount = countMatches(artHistoryStructure.regionAmericas);
+  const emeaCount = countMatches(artHistoryStructure.regionEMEA);
+  const asiaCount = countMatches(artHistoryStructure.regionAsia);
+  const pre1800Count = countMatches(artHistoryStructure.pre1800);
+  const post1800Count = countMatches(artHistoryStructure.post1800);
+  const level300Count = courses.filter(course => detectDepartmentFromCode(course.code) === "Art History" && (course.level || 0) >= 300).length;
+
+  return {
+    foundation,
+    amerCount,
+    emeaCount,
+    asiaCount,
+    pre1800Count,
+    post1800Count,
+    level300Count,
+    level300Required: artHistoryStructure.level300Required || 2,
+  };
+};
+
+export const computeBiocProgress = (courses = [], biocStructure = {}) => {
+  const foundation = (biocStructure.foundation || []).map(block => {
+    const match = courses.find(course => (block.options || []).some(opt => codesMatch(course.code, opt)));
+    return {
+      id: block.id,
+      label: block.label,
+      options: block.options || [],
+      completed: Boolean(match),
+      fulfilledBy: match?.code || null,
+    };
+  });
+
+  const evaluateGroup = (group = []) =>
+    group.map(req => {
+      const match = courses.find(course => (req.options || []).some(opt => codesMatch(course.code, opt)));
+      return {
+        id: req.id,
+        label: req.label,
+        completed: Boolean(match),
+        fulfilledBy: match?.code || null,
+      };
+    });
+
+  const bisc200 = evaluateGroup(biocStructure.bisc200 || []);
+  const chem200 = evaluateGroup(biocStructure.chem200 || []);
+
+  const matchListCount = (list = []) =>
+    courses.filter(course => list.some(code => codesMatch(course.code, code))).length;
+
+  const bisc300Count = matchListCount(biocStructure.bisc300Courses);
+  const chem331Completed = courses.some(course => (biocStructure.chem300Required || []).some(code => codesMatch(course.code, code)));
+  const chem300ElectiveCount = matchListCount(biocStructure.chem300Electives);
+  const labCourses = new Set((biocStructure.labCourses || []).map(code => code.toUpperCase()))
+  const labCount = courses.filter(course => {
+    const code = normalizeCourseCode(course.code);
+    return labCourses.has(code);
+  }).length;
+  const researchCompleted = courses.some(course => (biocStructure.researchCourses || []).some(code => codesMatch(course.code, code)));
+
+  return {
+    foundation,
+    bisc200,
+    chem200,
+    bisc300Count,
+    bisc300Required: 2,
+    chem331Completed,
+    chem300ElectiveCount,
+    chem300ElectiveRequired: 1,
+    labCount,
+    labRequired: 2,
+    researchCompleted,
+  };
+};
+
+export const computeChphProgress = (courses = [], chphStructure = {}) => {
+  const hasCourse = (code = "") => courses.some(course => codesMatch(course.code, code));
+  const findMatch = (options = []) => courses.find(course => options.some(opt => codesMatch(course.code, opt)));
+  const normalizeOptions = (list = []) => list.map(code => code.toUpperCase());
+
+  const generalChemAlt = hasCourse(chphStructure.generalChemAlt?.[0] || "");
+  const genChemIntroMatch = generalChemAlt
+    ? true
+    : Boolean(findMatch(chphStructure.generalChemIntro || []));
+  const genChemSecondMatch = generalChemAlt
+    ? true
+    : Boolean(findMatch(chphStructure.generalChemSecond || []));
+
+  const generalChem = {
+    completed: generalChemAlt ? true : (genChemIntroMatch && genChemSecondMatch),
+    fulfilledByAlt: generalChemAlt,
+  };
+
+  const physicsIntroCount = (chphStructure.physicsIntro || []).filter(hasCourse).length;
+  const requiredCourses = (chphStructure.requiredCourses || []).map(code => ({ code, completed: hasCourse(code) }));
+  const labChoice = (chphStructure.labChoice || []).map(block => {
+    const match = findMatch(block.options || []);
+    return {
+      id: block.id,
+      label: block.label,
+      completed: Boolean(match),
+      fulfilledBy: match?.code || null,
+    };
+  });
+  const chemAdvancedMatch = findMatch(chphStructure.chemAdvancedOptions || []);
+  const physicsElectiveMatch = findMatch(chphStructure.physicsElectives || []);
+
+  return {
+    generalChem,
+    physicsIntroCount,
+    physicsIntroTotal: (chphStructure.physicsIntro || []).length,
+    requiredCourses,
+    labChoice,
+    chemAdvancedCompleted: Boolean(chemAdvancedMatch),
+    physicsElectiveCompleted: Boolean(physicsElectiveMatch),
+  };
+};
+
+export const computeChemProgress = (courses = [], chemStructure = {}) => {
+  const hasCourse = (code = "") => courses.some(course => codesMatch(course.code, code));
+  const findMatch = (options = []) => courses.find(course => options.some(opt => codesMatch(course.code, opt)));
+
+  const tookAltSequence = (chemStructure.altSequence || []).some(code => hasCourse(code));
+  const foundation = (chemStructure.foundation || []).map(block => {
+    let completed = block.options?.some(opt => hasCourse(opt)) || false;
+    if (block.id === "chem-205" && tookAltSequence) completed = true;
+    const match = block.options?.length ? findMatch(block.options) : null;
+    return {
+      id: block.id,
+      label: block.label,
+      completed,
+      fulfilledBy: completed && match ? match.code : null,
+    };
+  });
+
+  const coreCourses = (chemStructure.coreCourses || []).map(code => ({ code, completed: hasCourse(code) }));
+
+  const electiveOptions = chemStructure.electivePool || [];
+  const electiveCount = courses.filter(course => electiveOptions.some(code => codesMatch(course.code, code))).length;
+  const electiveRequired = chemStructure.electiveRequired || 3;
+
+  const excludedExtra = new Set((chemStructure.excludedExtra300 || []).map(code => code.toUpperCase()));
+  const additional300Count = courses.filter(course => {
+    if ((course.level || 0) < 300) return false;
+    if (detectDepartmentFromCode(course.code) !== "Chemistry") return false;
+    const code = normalizeCourseCode(course.code);
+    return !excludedExtra.has(code);
+  }).length;
+
+  const researchCompleted = courses.some(course => (chemStructure.researchCourses || []).some(code => codesMatch(course.code, code)));
+
+  const physicsMet = (chemStructure.physicsRequirement || []).some(code => hasCourse(code));
+  const physicsIntroMet = (chemStructure.physicsIntro || []).some(code => hasCourse(code));
+  const mathMet = (chemStructure.mathRequirement || []).some(code => hasCourse(code));
+
+  return {
+    foundation,
+    coreCourses,
+    electiveCount,
+    electiveRequired,
+    additional300Count,
+    additional300Required: chemStructure.additional300Required || 1,
+    researchCompleted,
+    physicsMet,
+    physicsIntroMet,
+    mathMet,
+  };
+};
+
+export const computeCamsProgress = (courses = [], camsStructure = {}) => {
+  const matchCourse = (options = []) => courses.find(course => options.some(opt => codesMatch(course.code, opt)));
+  const foundation = (camsStructure.foundation || []).map(block => {
+    const match = matchCourse(block.options || []);
+    return {
+      id: block.id,
+      label: block.label,
+      completed: Boolean(match),
+      fulfilledBy: match?.code || null,
+    };
+  });
+
+  const productionCompleted = Boolean(matchCourse(camsStructure.productionCourses || []));
+  const coreMatches = courses.filter(course => (camsStructure.coreCourses || []).some(opt => codesMatch(course.code, opt))).length;
+  const level300Matches = courses.filter(course => (camsStructure.level300Courses || []).some(opt => codesMatch(course.code, opt))).length;
+  const additionalCamsMatches = courses.filter(course => course.code?.startsWith("CAMS")).length;
+
+  return {
+    foundation,
+    productionCompleted,
+    coreMatches,
+    coreRequired: 4,
+    level300Matches,
+    level300Required: camsStructure.level300Required || 2,
+    additionalCamsMatches,
+    additionalCamsRequired: camsStructure.additionalCamsRequired || 1,
+  };
+};
+
+export const computeClassicsProgress = (courses = [], classicsStructure = {}) => {
+  const deptOf = (course) => detectDepartmentFromCode(course.code);
+  const levelOf = (course) => course.level || 0;
+  const isGreek = (course) => deptOf(course) === "Greek";
+  const isLatin = (course) => deptOf(course) === "Latin";
+
+  const languageCourses = courses.filter(course => isGreek(course) || isLatin(course));
+  const greekCount = languageCourses.filter(isGreek).length;
+  const latinCount = languageCourses.filter(isLatin).length;
+  const lang300Count = languageCourses.filter(course => levelOf(course) >= 300).length;
+  const lang100Count = languageCourses.filter(course => levelOf(course) < 200).length;
+
+  const codesMatchList = (course, list = []) => (list || []).some(code => codesMatch(course.code, code));
+  const civCourses = courses.filter(course => codesMatchList(course, classicsStructure.civCourseCodes));
+  const civCount = civCourses.length;
+  const civClcvCount = civCourses.filter(course => deptOf(course) === "Classical Civilization" || course.code?.startsWith("CLCV")).length;
+  const civ100Count = civCourses.filter(course => levelOf(course) < 200).length;
+
+  return {
+    greekCount,
+    latinCount,
+    languageTotal: languageCourses.length,
+    lang300Count,
+    lang100Count,
+    civCount,
+    civRequired: classicsStructure.civRequired || 4,
+    civClcvCount,
+    civClcvRequired: classicsStructure.civClcvRequired || 2,
+    civ100Count,
+    civMax100: classicsStructure.civMax100 || 1,
+    languageTotalRequired: classicsStructure.languageTotalRequired || 6,
+    languageMinUpper: classicsStructure.languageMinUpper || 2,
+    languageMaxIntro: classicsStructure.languageMaxIntro || 2,
+  };
+};
+
+export const computeClscProgress = (courses = [], clscStructure = {}) => {
+  const matchesDeptOrPrefix = (course, entry = {}) => {
+    const dept = detectDepartmentFromCode(course.code);
+    if ((entry.departments || []).includes(dept)) return true;
+    const prefixes = entry.prefixes || [];
+    if (prefixes.some(prefix => course.code?.startsWith(prefix))) return true;
+    return false;
+  };
+
+  const foundation = (clscStructure.core || []).map(block => {
+    let completed = false;
+    let fulfilledBy = null;
+    if (block.options && block.options.length) {
+      const match = courses.find(course => block.options.some(opt => codesMatch(course.code, opt)));
+      completed = Boolean(match);
+      fulfilledBy = match?.code || null;
+    } else if (block.dept || block.prefixes) {
+      const match = courses.find(course => matchesDeptOrPrefix(course, block));
+      completed = Boolean(match);
+      fulfilledBy = match?.code || null;
+    }
+    return { id: block.id, label: block.label, completed, fulfilledBy };
+  });
+
+  const concentrations = (clscStructure.concentrations || []).map(conc => {
+    const count = courses.filter(course => matchesDeptOrPrefix(course, conc)).length;
+    return { ...conc, count };
+  });
+  const bestConcentration = concentrations.reduce((best, current) => (current.count > (best?.count || 0) ? current : best), null);
+
+  return {
+    foundation,
+    concentrations,
+    bestConcentration,
+    concentrationRequired: clscStructure.concentrationElectivesRequired || 4,
+  };
+};
+
+export const computeCpltProgress = (courses = [], cpltStructure = {}) => {
+  const isCpltCourse = (course) => (course.code || "").startsWith("CPLT");
+  const cpltCourses = courses.filter(isCpltCourse);
+  const cpltCount = cpltCourses.length;
+  const cplt300Count = cpltCourses.filter(course => (course.level || 0) >= 300).length;
+
+  const requiredCourses = (cpltStructure.requiredCourses || []).map(code => ({
+    code,
+    completed: courses.some(course => codesMatch(course.code, code)),
+  }));
+
+  const totalCourses = courses.length;
+
+  return {
+    requiredCourses,
+    cpltCount,
+    cplt300Count,
+    totalCourses,
+    minCpltCourses: cpltStructure.minCpltCourses || 5,
+    totalRequired: cpltStructure.totalRequired || 9,
+  };
+};
+
+export const computeDsProgress = (courses = [], dsStructure = {}) => {
+  const foundation = (dsStructure.foundations || []).map(block => {
+    const match = courses.find(course => (block.options || []).some(opt => codesMatch(course.code, opt)));
+    return {
+      id: block.id,
+      label: block.label,
+      options: block.options || [],
+      completed: Boolean(match),
+      fulfilledBy: match?.code || null,
+    };
+  });
+
+  const matchesElective = (course, options = []) => options.some(opt => codesMatch(course.code, opt));
+  const csElectiveCount = courses.filter(course => matchesElective(course, dsStructure.electivesCS)).length;
+  const statElectiveCount = courses.filter(course => matchesElective(course, dsStructure.electivesStat)).length;
+
+  const hasCapstone = courses.some(course => (dsStructure.capstoneOptions || []).some(opt => codesMatch(course.code, opt)));
+
+  return {
+    foundation,
+    csElectiveCount,
+    statElectiveCount,
+    hasCapstone,
+  };
+};
+
+export const computeEalcProgress = (courses = [], ealcStructure = {}) => {
+  const gatewayMatch = courses.some(course => codesMatch(course.code, ealcStructure.gateway || ""));
+  const trackResults = Object.entries(ealcStructure.tracks || {}).map(([key, track]) => {
+    let bestSequence = null;
+    (track.sequences || []).forEach(seq => {
+      const completed = seq.every(code => courses.some(course => codesMatch(course.code, code)));
+      if (completed && !bestSequence) {
+        bestSequence = seq;
+      }
+    });
+    return {
+      id: key,
+      label: track.label,
+      completed: Boolean(bestSequence),
+    };
+  });
+
+  const isLanguageCourse = (course) => {
+    const code = (course.code || "").toUpperCase();
+    return code.startsWith("CHIN") || code.startsWith("JPN") || code.startsWith("KOR");
+  };
+
+  const languageCourses = courses.filter(isLanguageCourse);
+  const level300Count = languageCourses.filter(course => (course.level || 0) >= 300).length;
+
+  const nonLanguageCourses = courses.filter(course => !isLanguageCourse(course));
+  const nonLanguageCount = nonLanguageCourses.length;
+  const surveyCount = nonLanguageCourses.filter(course => {
+    const level = course.level || 0;
+    return level >= 200 && level < 300;
+  }).length;
+
+  return {
+    gatewayCompleted: gatewayMatch,
+    trackResults,
+    nonLanguageCount,
+    nonLanguageRequired: ealcStructure.nonLanguageRequired || 2,
+    surveyCount,
+    surveyRequired: ealcStructure.surveyRequired || 1,
+    level300Count,
+    level300Required: ealcStructure.level300Required || 2,
+  };
+};
+
+export const computeEasProgress = (courses = [], easStructure = {}) => {
+  const languagePrefixes = easStructure.languagePrefixes || ["CHIN", "JPN", "KOR"];
+  const isLanguageCourse = (course) => {
+    const code = (course.code || "").toUpperCase();
+    return languagePrefixes.some((prefix) => code.startsWith(prefix));
+  };
+
+  const languageCourses = courses.filter(
+    (course) => isLanguageCourse(course) && (course.level || 0) >= 200
+  );
+  const nonLanguageCourses = courses.filter((course) => !isLanguageCourse(course));
+
+  const belongsTo = (course, list = []) => list.some((code) => codesMatch(course.code, code));
+
+  const humanitiesCount = nonLanguageCourses.filter((course) => belongsTo(course, easStructure.humanitiesCourses || [])).length;
+  const historyCount = nonLanguageCourses.filter((course) => belongsTo(course, easStructure.historyCourses || [])).length;
+  const nonLanguageCount = nonLanguageCourses.length;
+  const nonLang300Count = nonLanguageCourses.filter((course) => (course.level || 0) >= 300).length;
+
+  return {
+    languageCount: languageCourses.length,
+    languageRequired: easStructure.languageRequired || 4,
+    nonLanguageCount,
+    nonLanguageRequired: easStructure.nonLanguageRequired || 6,
+    humanitiesCount,
+    humanitiesRequired: easStructure.humanitiesRequired || 1,
+    historyCount,
+    historyRequired: easStructure.historyRequired || 1,
+    nonLang300Count,
+    nonLang300Required: easStructure.concentration300Required || 2,
+    concentrationRequired: easStructure.concentrationRequired || 3,
+  };
+};
+
+export const computeEducationProgress = (courses = [], educationStructure = {}) => {
+  const matches = (course, list = []) =>
+    (list || []).some(code => codesMatch(course.code, code));
+  const normalizeCode = (course) => normalizeCourseCode(course.code);
+
+  const coreCourse = courses.find(course => matches(course, educationStructure.coreCourses || []));
+  const researchTheoryCourses = courses.filter(course =>
+    matches(course, educationStructure.researchTheoryCourses || [])
+  );
+  const curriculumCourses = courses.filter(course =>
+    matches(course, educationStructure.curriculumTeachingCourses || [])
+  );
+  const electiveCourses = courses.filter(course =>
+    matches(course, educationStructure.electiveCourses || [])
+  );
+  const capstoneCourses = courses.filter(course =>
+    matches(course, educationStructure.capstoneCourses || [])
+  );
+  const independentStudies = courses.filter(course =>
+    matches(course, educationStructure.independentStudyCourses || [])
+  );
+
+  const educationPrefixCourses = courses.filter(course => normalizeCode(course).startsWith("EDUC"));
+  const education300Courses = educationPrefixCourses.filter(course => (course.level || 0) >= 300);
+
+  const majorEligibleCourses = courses.filter(course => {
+    if (normalizeCode(course).startsWith("EDUC")) return true;
+    if (matches(course, educationStructure.researchTheoryCourses || [])) return true;
+    if (matches(course, educationStructure.curriculumTeachingCourses || [])) return true;
+    if (matches(course, educationStructure.electiveCourses || [])) return true;
+    return false;
+  });
+
+  return {
+    coreCompleted: Boolean(coreCourse),
+    coreFulfilledBy: coreCourse?.code || null,
+    researchTheoryCount: researchTheoryCourses.length,
+    researchTheoryRequired: educationStructure.researchTheoryRequired || 4,
+    curriculumCount: curriculumCourses.length,
+    curriculumMax: educationStructure.curriculumMax || 3,
+    electiveCount: electiveCourses.length,
+    electiveMax: educationStructure.electiveMax || 3,
+    capstoneCount: capstoneCourses.length,
+    capstoneCompleted: capstoneCourses.length >= (educationStructure.capstoneRequired || 1),
+    capstoneRequired: educationStructure.capstoneRequired || 1,
+    capstoneFulfilledBy: capstoneCourses[0]?.code || null,
+    educationDeptCount: educationPrefixCourses.length,
+    education300Count: education300Courses.length,
+    education300Required: educationStructure.education300Required || 2,
+    independentStudyCount: independentStudies.length,
+    independentStudyLimit: educationStructure.independentStudyLimit || 1,
+    totalCourses: majorEligibleCourses.length,
+    totalRequired: educationStructure.totalRequired || 9,
+  };
+};
+
 export const computeAnthroProgress = (courses, structure, experienceComplete = false) => {
   const normalizeCode = (course) => normalizeCourseCode(course.code);
   const matches = (course, list = []) => list.some(code => codesMatch(course.code, code));

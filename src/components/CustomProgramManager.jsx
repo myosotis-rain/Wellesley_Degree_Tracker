@@ -29,6 +29,7 @@ export function CustomMajorManager({
   );
   const canAddRow = customMajorRequirements.length < maxRequirements;
   const canSaveCustomMajor = !!trimmedName && !nameExists;
+  const isBaseSelection = majorValue === "Custom Major";
 
   return (
     <div className="space-y-4">
@@ -132,36 +133,49 @@ export function CustomMajorManager({
         )}
       </div>
 
-      <div className="space-y-2">
-        {customMajorRequirements.map((req, idx) => (
-          <div key={idx} className="flex items-center gap-2">
-            <span className="w-6 text-right text-xs text-slate-500">{idx + 1}.</span>
-            <input
-              name={`customMajorRequirement-${idx}`}
-              type="text"
-              value={req}
-              onChange={(e) => onRequirementChange(idx, e.target.value)}
-              placeholder="Enter course or requirement name"
-              className="flex-1 rounded-lg border px-3 py-2 text-sm"
-              maxLength={120}
-            />
+      {isBaseSelection ? (
+        <div className="rounded-xl border border-dashed border-slate-200 bg-white/80 px-3 py-3 text-[0.75rem] text-slate-600">
+          <div className="text-[0.6rem] font-semibold uppercase tracking-wide text-slate-500">
+            Select a named custom major
           </div>
-        ))}
-      </div>
+          <p className="mt-1 leading-snug">
+            Use the field above to add a custom major, then pick that named entry from the major dropdown at the top of this card to enter requirement rows. The default placeholder will stay blank until you switch.
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="space-y-2">
+            {customMajorRequirements.map((req, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <span className="w-6 text-right text-xs text-slate-500">{idx + 1}.</span>
+                <input
+                  name={`customMajorRequirement-${idx}`}
+                  type="text"
+                  value={req}
+                  onChange={(e) => onRequirementChange(idx, e.target.value)}
+                  placeholder="Enter course or requirement name"
+                  className="flex-1 rounded-lg border px-3 py-2 text-sm"
+                  maxLength={120}
+                />
+              </div>
+            ))}
+          </div>
 
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={onAddRequirement}
-          disabled={!canAddRow}
-          className={cx(
-            "rounded-full px-4 py-1.5 text-sm font-medium",
-            canAddRow ? "border border-slate-300 text-slate-700 hover:bg-slate-50" : "border border-slate-200 text-slate-400 cursor-not-allowed"
-          )}
-        >
-          {canAddRow ? "Add requirement" : `Max ${maxRequirements} rows reached`}
-        </button>
-      </div>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={onAddRequirement}
+              disabled={!canAddRow}
+              className={cx(
+                "rounded-full px-4 py-1.5 text-sm font-medium",
+                canAddRow ? "border border-slate-300 text-slate-700 hover:bg-slate-50" : "border border-slate-200 text-slate-400 cursor-not-allowed"
+              )}
+            >
+              {canAddRow ? "Add requirement" : `Max ${maxRequirements} rows reached`}
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -194,6 +208,7 @@ export function CustomMinorManager({
   );
   const canAddRow = customMinorRequirements.length < maxRequirements;
   const canSaveCustomMinor = !!trimmedName && !nameExists;
+  const isBaseSelection = minorValue === "Custom Minor";
 
   return (
     <div className="mt-4 space-y-4">
@@ -301,36 +316,49 @@ export function CustomMinorManager({
           )}
         </div>
 
-        <div className="mt-4 space-y-2">
-          {customMinorRequirements.map((req, idx) => (
-            <div key={idx} className="flex items-center gap-2">
-              <span className="w-6 text-right text-xs text-slate-500">{idx + 1}.</span>
-              <input
-                name={`customMinorRequirement-${idx}`}
-                type="text"
-                value={req}
-                onChange={(e) => onRequirementChange(idx, e.target.value)}
-                placeholder="Enter course or requirement name"
-                className="flex-1 rounded-lg border px-3 py-2 text-sm"
-                maxLength={120}
-              />
+        {isBaseSelection ? (
+          <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-3 py-3 text-[0.75rem] text-slate-600">
+            <div className="text-[0.6rem] font-semibold uppercase tracking-wide text-slate-500">
+              Select a named custom minor
             </div>
-          ))}
-        </div>
+            <p className="mt-1 leading-snug">
+              Once you add a custom minor, pick it from the dropdown above (instead of the default placeholder) to enter requirement rows and keep everything organized.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="mt-4 space-y-2">
+              {customMinorRequirements.map((req, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <span className="w-6 text-right text-xs text-slate-500">{idx + 1}.</span>
+                  <input
+                    name={`customMinorRequirement-${idx}`}
+                    type="text"
+                    value={req}
+                    onChange={(e) => onRequirementChange(idx, e.target.value)}
+                    placeholder="Enter course or requirement name"
+                    className="flex-1 rounded-lg border px-3 py-2 text-sm"
+                    maxLength={120}
+                  />
+                </div>
+              ))}
+            </div>
 
-        <div className="mt-4 flex justify-end">
-          <button
-            type="button"
-            onClick={onAddRequirement}
-            disabled={!canAddRow}
-            className={cx(
-              "rounded-full px-4 py-1.5 text-sm font-medium",
-              canAddRow ? "border border-slate-300 text-slate-700 hover:bg-slate-50" : "border border-slate-200 text-slate-400 cursor-not-allowed"
-            )}
-          >
-            {canAddRow ? "Add requirement" : `Max ${maxRequirements} rows reached`}
-          </button>
-        </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={onAddRequirement}
+                disabled={!canAddRow}
+                className={cx(
+                  "rounded-full px-4 py-1.5 text-sm font-medium",
+                  canAddRow ? "border border-slate-300 text-slate-700 hover:bg-slate-50" : "border border-slate-200 text-slate-400 cursor-not-allowed"
+                )}
+              >
+                {canAddRow ? "Add requirement" : `Max ${maxRequirements} rows reached`}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
