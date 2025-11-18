@@ -12,6 +12,13 @@ export const detectDepartmentFromCode = (courseCode) => {
   return courseCodeToDepartment[deptCode] || null;
 };
 
+export const normalizeCourseCode = (code = "") => (code || "").trim().toUpperCase();
+export const compactCourseCode = (code = "") => normalizeCourseCode(code).replace(/\s+/g, "");
+export const codesMatch = (codeA = "", codeB = "") => {
+  if (!codeA || !codeB) return false;
+  return compactCourseCode(codeA) === compactCourseCode(codeB);
+};
+
 export const newSlot = () => ({
   code: "",
   title: "",
