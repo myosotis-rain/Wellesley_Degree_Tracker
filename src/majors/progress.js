@@ -151,40 +151,184 @@ export const computeBioProgress = (courses, bioStructure) => {
   };
 };
 
-export const computeMathProgress = (courses, mathStructure) => {
+export const computeMathProgress = (courses = [], mathStructure = {}) => {
   const normalizeCode = (course) => normalizeCourseCode(course.code);
-  const hasCourse = (code) => courses.some(course => codesMatch(course.code, code));
+  const hasCourse = (code = "") => courses.some(course => codesMatch(course.code, code));
 
-  const calculusCompleted = ["MATH 115", "MATH 116"].map(hasCourse);
+  const calculusSequence =
+    (mathStructure.calculusSequence && mathStructure.calculusSequence.length > 0)
+      ? mathStructure.calculusSequence
+      : ["MATH 115", "MATH 116"];
+  const calculusStatus = calculusSequence.map(code => ({
+    code,
+    completed: hasCourse(code),
+  }));
+
   const coreCourses = mathStructure.coreCourses || [];
-  const coreCompleted = coreCourses.filter(hasCourse);
+  const coreStatus = coreCourses.map(code => ({
+    code,
+    completed: hasCourse(code),
+  }));
 
-  const level300Courses = courses.filter(course => normalizeCode(course).startsWith("MATH") && (course.level || 0) >= 300);
+  const seminarCourses = mathStructure.seminarCourses || [];
+  const seminarStatus = seminarCourses.map(code => ({
+    code,
+    completed: hasCourse(code),
+  }));
+
+  const level300Courses = courses.filter(
+    course => normalizeCode(course).startsWith("MATH") && (course.level || 0) >= 300
+  );
+
+  const allowedDepartments = mathStructure.allowedDepartments || ["Mathematics"];
+  const excluded = new Set((mathStructure.excludedCourses || []).map(item => normalizeCourseCode(item)));
+  const advancedCourses = courses.filter(course => {
+    const dept = detectDepartmentFromCode(course.code);
+    if (!dept || !allowedDepartments.includes(dept)) return false;
+    if ((course.level || 0) < 200) return false;
+    const code = normalizeCode(course);
+    if (excluded.has(code)) return false;
+    return true;
+  }).length;
 
   return {
-    calculusCompleted,
-    coreTotal: coreCourses.length,
-    coreCompleted: coreCompleted.length,
+    calculusStatus,
+    coreStatus,
+    seminarStatus,
     level300Count: level300Courses.length,
+    additional300Required: mathStructure.additional300Required || 2,
+    advancedCourses,
+    advancedTotalRequired: mathStructure.advancedTotalRequired || 8,
   };
 };
 
-export const computeEconProgress = (courses, econStructure) => {
+export const computeEconProgress = (courses = [], econStructure = {}) => {
   const normalizeCode = (course) => normalizeCourseCode(course.code);
-  const hasCourse = (code) => courses.some(course => codesMatch(course.code, code));
+  const hasCourse = (code = "") => courses.some(course => codesMatch(course.code, code));
+  const findCourseMatch = (codes = []) =>
+    courses.find(course => codes.some(code => codesMatch(course.code, code)));
 
-  const required = econStructure.coreCourses || [];
-  const coreCompleted = required.filter(hasCourse);
+  const stepStatus = (id, label, options = [], meta = {}) => {
+    if (!options.length) return null;
+    const match = findCourseMatch(options);
+    return {
+      id,
+      label,
+      options,
+      completed: Boolean(match),
+      fulfilledBy: match?.code || null,
+      matchedCourse: match || null,
+      display: options.join(" / "),
+      ...meta,
+    };
+  };
 
-  const econometrics = hasCourse("ECON 203");
-  const level300Econ = courses.filter(course => normalizeCode(course).startsWith("ECON") && (course.level || 0) >= 300);
+  const sequences = [];
+
+  const microSteps = [
+    stepStatus("micro-intro", "Introductory", econStructure.microIntro || []),
+    stepStatus("micro-intermediate", "Intermediate", econStructure.microIntermediate || []),
+  ].filter(Boolean);
+  if (microSteps.length) {
+    sequences.push({ id: "micro-sequence", title: "Microeconomics", steps: microSteps });
+  }
+
+  const macroSteps = [
+    stepStatus("macro-intro", "Introductory", econStructure.macroIntro || []),
+    stepStatus("macro-intermediate", "Intermediate", econStructure.macroIntermediate || []),
+  ].filter(Boolean);
+  if (macroSteps.length) {
+    sequences.push({ id: "macro-sequence", title: "Macroeconomics", steps: macroSteps });
+  }
+
+  const statsIntroOptions = [
+    ...(econStructure.statsSequence ? [econStructure.statsSequence[0]] : []),
+    ...(econStructure.altStatsCredit || []),
+  ].filter(Boolean);
+  const econometricsOptions = (econStructure.statsSequence || []).slice(1);
+
+  const statsSteps = [
+    stepStatus(
+      "stats-sequence",
+      "Statistics foundation",
+      statsIntroOptions,
+      {
+        altOptions: econStructure.altStatsCredit || [],
+        altFulfilledBy: findCourseMatch(econStructure.altStatsCredit || [])?.code || null,
+      }
+    ),
+    stepStatus(
+      "econometrics",
+      "Econometrics",
+      econometricsOptions.length ? econometricsOptions : ["ECON 203"]
+    ),
+  ].filter(Boolean);
+  if (statsSteps.length) {
+    sequences.push({ id: "stats-sequence", title: "Data & Econometrics", steps: statsSteps });
+  }
+
+  const level300Econ = courses.filter(
+    course => normalizeCode(course).startsWith("ECON") && (course.level || 0) >= 300
+  );
+
+  const usedCodes = new Set();
+  const markUsed = (entry) => {
+    if (!entry) return;
+    if (typeof entry === "string") {
+      const normalized = normalizeCourseCode(entry);
+      if (normalized) usedCodes.add(normalized);
+      return;
+    }
+    if (entry.code) {
+      const normalized = normalizeCode(entry);
+      if (normalized) usedCodes.add(normalized);
+    }
+  };
+
+  sequences.forEach(sequence => {
+    (sequence.steps || []).forEach(step => {
+      if (step?.matchedCourse) {
+        markUsed(step.matchedCourse);
+      }
+      if (step?.fulfilledBy) {
+        markUsed(step.fulfilledBy);
+      }
+      if (step?.altFulfilledBy) {
+        markUsed(step.altFulfilledBy);
+      }
+    });
+  });
+
+  const electiveSubSet = new Set(
+    (econStructure.electiveSubstitutions || []).map(code => normalizeCourseCode(code))
+  );
+  const econEligibleCourses = courses.filter(course => {
+    const code = normalizeCode(course);
+    if (!code) return false;
+    if (code.startsWith("ECON")) return true;
+    return electiveSubSet.has(code);
+  });
+  const econCourseCount = econEligibleCourses.length;
+  const electivePool = econEligibleCourses.filter(course => !usedCodes.has(normalizeCode(course)));
+  const electiveRequired =
+    econStructure.electiveRequired ||
+    econStructure.electiveCoursesRequired ||
+    econStructure.electiveCourses ||
+    3;
+  const electiveCount = Math.max(0, electivePool.length);
+
+  const mathPrereqCompleted = econStructure.mathPrereq ? hasCourse(econStructure.mathPrereq) : false;
 
   return {
-    coreCompleted,
-    coreRequired: required.length,
-    econometrics,
+    sequences,
+    econometrics: statsSteps.find(step => step?.id === "econometrics")?.completed || false,
     level300Count: level300Econ.length,
     level300Required: econStructure.level300Required || 2,
+    econCourseCount,
+    electiveCount,
+    electiveRequired,
+    mathPrereqCompleted,
+    mathPrereqLabel: econStructure.mathPrereq || "",
   };
 };
 
@@ -220,6 +364,7 @@ export const computeEnglishProgress = (courses, structure) => {
   const level300 = englishCourses.filter(course => (course.level || 0) >= 300);
 
   return {
+    totalCourses: courses.length,
     englishDeptCourses: englishCourses.length,
     upperLevelCourses: upperLevel.length,
     level300Courses: level300.length,

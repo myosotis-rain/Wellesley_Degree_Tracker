@@ -63,14 +63,14 @@ export default function PlanProgramControls({
           name="startYear"
           autoComplete="off"
           value={startYear}
-          onChange={(e) => onStartYearChange(parseInt(e.target.value, 10))}
+          onChange={(e) => onStartYearChange(e.target.value)}
           className="w-20 rounded border px-2 py-1"
           min="2020"
           max="2030"
         />
         <button
           type="button"
-          onClick={onConfirmStartYear}
+          onClick={() => onConfirmStartYear()}
           className="rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:border-indigo-300 hover:bg-indigo-50"
         >
           Confirm

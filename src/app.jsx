@@ -80,6 +80,64 @@ const MAX_CUSTOM_MINOR_REQUIREMENTS = 12;
 const DEFAULT_CUSTOM_MINOR_COUNT = 6;
 const SUBJECT_NAME_SET = new Set(subjectOptions);
 const DISTRIBUTION_TAG_PRIORITY = ["LL", "ARTS", "SBA", "EC", "REP", "HST", "NPS", "MM"];
+const DISTRIBUTION_TAG_SET = new Set(DISTRIBUTION_TAG_PRIORITY);
+const CALENDAR_SEASON_ORDER = { Winter: 1, Spring: 2, Summer: 3, Fall: 4 };
+const BASE_CUSTOM_MAJOR_KEY = "custom-major:base";
+const BASE_CUSTOM_MINOR_KEY = "custom-minor:base";
+
+const createDefaultCustomMajorRequirementList = () =>
+  Array(DEFAULT_CUSTOM_MAJOR_COUNT).fill("");
+const createDefaultCustomMinorRequirementList = () =>
+  Array(DEFAULT_CUSTOM_MINOR_COUNT).fill("");
+
+const sanitizeRequirementList = (list, maxCount, defaultFactory) => {
+  if (!Array.isArray(list)) {
+    return defaultFactory();
+  }
+  return list
+    .slice(0, maxCount)
+    .map(item => (typeof item === "string" ? item : ""));
+};
+
+const buildRequirementMap = (mapSource, legacyList, {
+  maxCount,
+  defaultFactory,
+  baseKey,
+}) => {
+  const result = {};
+  if (mapSource && typeof mapSource === "object") {
+    Object.entries(mapSource).forEach(([key, value]) => {
+      result[key] = sanitizeRequirementList(value, maxCount, defaultFactory);
+    });
+  } else if (Array.isArray(legacyList)) {
+    result[baseKey] = sanitizeRequirementList(legacyList, maxCount, defaultFactory);
+  }
+  if (!result[baseKey]) {
+    result[baseKey] = defaultFactory();
+  }
+  return result;
+};
+
+const getCustomMajorRequirementKey = (value = "") => {
+  if (typeof value === "string" && value.startsWith(CUSTOM_MAJOR_VALUE_PREFIX)) {
+    return value;
+  }
+  return BASE_CUSTOM_MAJOR_KEY;
+};
+
+const getCustomMinorRequirementKey = (value = "") => {
+  if (typeof value === "string" && value.startsWith(CUSTOM_MINOR_VALUE_PREFIX)) {
+    return value;
+  }
+  return BASE_CUSTOM_MINOR_KEY;
+};
+
+const seasonFromMonth = (m) => {
+  if (m === 0) return "Winter";
+  if (m >= 1 && m <= 4) return "Spring";
+  if (m >= 5 && m <= 7) return "Summer";
+  return "Fall";
+};
 
 
 const calculateGPA = (terms = []) => {
@@ -359,18 +417,11 @@ export default function App() {
   const savedData = savedDataRef.current || null;
   const currentYear = new Date().getFullYear();
   const initialStartYear = savedData?.startYear || currentYear;
-  const getInitialCustomMinorRequirements = () => {
-    const savedList = Array.isArray(savedData?.customMinorRequirements)
-      ? savedData.customMinorRequirements.slice(0, MAX_CUSTOM_MINOR_REQUIREMENTS)
-      : [];
-    if (savedList.length >= DEFAULT_CUSTOM_MINOR_COUNT) return savedList;
-    const missing = DEFAULT_CUSTOM_MINOR_COUNT - savedList.length;
-    return [...savedList, ...Array(Math.max(missing, 0)).fill("")];
-  };
   const [terms, setTerms] = useState(() => savedData?.terms || []);
   const [activeTermId, setActiveTermId] = useState(null);
   const [activeTab, setActiveTab] = useState(savedData?.activeTab || "plan");
   const [startYear, setStartYear] = useState(initialStartYear);
+  const [startYearDraft, setStartYearDraft] = useState(String(initialStartYear));
   const {
     programSelections,
     setProgramSelections,
@@ -389,12 +440,30 @@ export default function App() {
     savedData?.yearLabels || Object.fromEntries(defaultYears.map((y) => [y.id, y.label]))
   );
   const [languageWaived, setLanguageWaived] = useState(savedData?.languageWaived || false);
-  const [customMajorRequirements, setCustomMajorRequirements] = useState(
-    () => savedData?.customMajorRequirements || Array(DEFAULT_CUSTOM_MAJOR_COUNT).fill("")
+  const [customMajorRequirementMap, setCustomMajorRequirementMap] = useState(() =>
+    buildRequirementMap(
+      savedData?.customMajorRequirementMap,
+      savedData?.customMajorRequirements,
+      {
+        maxCount: MAX_CUSTOM_MAJOR_REQUIREMENTS,
+        defaultFactory: createDefaultCustomMajorRequirementList,
+        baseKey: BASE_CUSTOM_MAJOR_KEY,
+      }
+    )
   );
   const [customMajors, setCustomMajors] = useState(() => ensureCustomMajorList(savedData?.customMajors));
   const [newCustomMajorName, setNewCustomMajorName] = useState("");
-  const [customMinorRequirements, setCustomMinorRequirements] = useState(getInitialCustomMinorRequirements);
+  const [customMinorRequirementMap, setCustomMinorRequirementMap] = useState(() =>
+    buildRequirementMap(
+      savedData?.customMinorRequirementMap,
+      savedData?.customMinorRequirements,
+      {
+        maxCount: MAX_CUSTOM_MINOR_REQUIREMENTS,
+        defaultFactory: createDefaultCustomMinorRequirementList,
+        baseKey: BASE_CUSTOM_MINOR_KEY,
+      }
+    )
+  );
   const [customMinors, setCustomMinors] = useState(() => ensureCustomMinorList(savedData?.customMinors));
   const [newCustomMinorName, setNewCustomMinorName] = useState("");
   const [editingCustomMajorId, setEditingCustomMajorId] = useState(null);
@@ -403,8 +472,39 @@ export default function App() {
   const [editingCustomMinorName, setEditingCustomMinorName] = useState("");
   const [currentTermId, setCurrentTermId] = useState(savedData?.currentTermId || "");
   const gpaSummary = useMemo(() => calculateGPA(terms), [terms]);
+  useEffect(() => {
+    setStartYearDraft(String(startYear));
+  }, [startYear]);
 
   const termById = (id) => terms.find(t => t.id === id) || null;
+
+  const getSeasonForTerm = (term) => {
+    if (!term) return null;
+    if (term.season) return term.season;
+    if (term.id?.includes("-F")) return "Fall";
+    if (term.id?.includes("-S")) return "Spring";
+    if (term.id?.includes("-U")) return "Summer";
+    if (term.id?.includes("-W")) return "Winter";
+    return null;
+  };
+
+  const getYearNumberForTerm = (term) => {
+    if (!term) return null;
+    if (Number.isFinite(term.year)) return term.year;
+    const match = term.id?.match(/Y(\d+)-/);
+    return match ? parseInt(match[1], 10) : null;
+  };
+
+  const getCalendarYearForTerm = (term) => {
+    if (!term) return null;
+    if (Number.isFinite(term.calendarYear)) return term.calendarYear;
+    const season = getSeasonForTerm(term);
+    const baseYear = getYearNumberForTerm(term) ?? 1;
+    if (!season) return null;
+    return (season === "Fall" || season === "Winter")
+      ? startYear + (baseYear - 1)
+      : startYear + baseYear;
+  };
 
   const sortedTerms = useMemo(() => {
     const seasonOrder = { Fall: 1, Winter: 2, Spring: 3, Summer: 4 };
@@ -416,57 +516,105 @@ export default function App() {
       });
   }, [terms]);
 
-  const sortedTermIds = useMemo(() => sortedTerms.map(term => term.id), [sortedTerms]);
-
   const termStatuses = useMemo(() => {
     const statusMap = {};
-    const currentIndex = currentTermId ? sortedTermIds.indexOf(currentTermId) : -1;
-    sortedTermIds.forEach((id, idx) => {
-      let status = "unspecified";
-      if (currentIndex >= 0) {
-        if (idx < currentIndex) status = "past";
-        else if (idx === currentIndex) status = "current";
-        else status = "future";
+    if (!sortedTerms.length) return statusMap;
+    const currentIndex = currentTermId ? sortedTerms.findIndex(term => term.id === currentTermId) : -1;
+    if (currentIndex >= 0) {
+      sortedTerms.forEach((term, idx) => {
+        if (idx < currentIndex) statusMap[term.id] = "past";
+        else if (idx === currentIndex) statusMap[term.id] = "current";
+        else statusMap[term.id] = "future";
+      });
+      return statusMap;
+    }
+    const now = new Date();
+    const targetSeason = seasonFromMonth(now.getMonth());
+    const targetYear = now.getFullYear();
+    const targetSeasonRank = CALENDAR_SEASON_ORDER[targetSeason] || 0;
+
+    sortedTerms.forEach(term => {
+      const termSeason = getSeasonForTerm(term);
+      const termYear = getCalendarYearForTerm(term);
+      if (!termSeason || !Number.isFinite(termYear)) {
+        statusMap[term.id] = "unspecified";
+        return;
       }
-      statusMap[id] = status;
+      const rank = CALENDAR_SEASON_ORDER[termSeason] || 0;
+      if (termYear < targetYear || (termYear === targetYear && rank < targetSeasonRank)) {
+        statusMap[term.id] = "past";
+      } else if (termYear === targetYear && rank === targetSeasonRank) {
+        statusMap[term.id] = "current";
+      } else {
+        statusMap[term.id] = "future";
+      }
     });
+
     return statusMap;
-  }, [sortedTermIds, currentTermId]);
+  }, [sortedTerms, currentTermId, startYear]);
 
-  const updateCustomRequirement = (index, value) => {
-    setCustomMajorRequirements(prev =>
-      prev.map((entry, i) => (i === index ? value : entry))
-    );
+  const getCustomMajorRequirementsForValue = (majorValue) => {
+    const key = getCustomMajorRequirementKey(majorValue);
+    return customMajorRequirementMap[key] || customMajorRequirementMap[BASE_CUSTOM_MAJOR_KEY] || createDefaultCustomMajorRequirementList();
   };
 
-  const addCustomRequirementRow = () => {
-    setCustomMajorRequirements(prev => {
-      if (prev.length >= MAX_CUSTOM_MAJOR_REQUIREMENTS) return prev;
-      return [...prev, ""];
+  const updateCustomMajorRequirement = (majorValue, index, value) => {
+    const key = getCustomMajorRequirementKey(majorValue);
+    setCustomMajorRequirementMap(prev => {
+      const current = prev[key] || createDefaultCustomMajorRequirementList();
+      if (index < 0 || index >= current.length) return prev;
+      const next = current.map((entry, i) => (i === index ? value : entry));
+      return { ...prev, [key]: next };
     });
   };
 
-  const updateCustomMinorRequirement = (index, value) => {
-    setCustomMinorRequirements(prev =>
-      prev.map((entry, i) => (i === index ? value : entry))
-    );
-  };
-
-  const addCustomMinorRequirementRow = () => {
-    setCustomMinorRequirements(prev => {
-      if (prev.length >= MAX_CUSTOM_MINOR_REQUIREMENTS) return prev;
-      return [...prev, ""];
+  const addCustomMajorRequirementRow = (majorValue) => {
+    const key = getCustomMajorRequirementKey(majorValue);
+    setCustomMajorRequirementMap(prev => {
+      const current = prev[key] || createDefaultCustomMajorRequirementList();
+      if (current.length >= MAX_CUSTOM_MAJOR_REQUIREMENTS) return prev;
+      return { ...prev, [key]: [...current, ""] };
     });
   };
 
-  const addCustomMajor = () => {
+  const getCustomMinorRequirementsForValue = (minorValue) => {
+    const key = getCustomMinorRequirementKey(minorValue);
+    return customMinorRequirementMap[key] || customMinorRequirementMap[BASE_CUSTOM_MINOR_KEY] || createDefaultCustomMinorRequirementList();
+  };
+
+  const updateCustomMinorRequirement = (minorValue, index, value) => {
+    const key = getCustomMinorRequirementKey(minorValue);
+    setCustomMinorRequirementMap(prev => {
+      const current = prev[key] || createDefaultCustomMinorRequirementList();
+      if (index < 0 || index >= current.length) return prev;
+      const next = current.map((entry, i) => (i === index ? value : entry));
+      return { ...prev, [key]: next };
+    });
+  };
+
+  const addCustomMinorRequirementRow = (minorValue) => {
+    const key = getCustomMinorRequirementKey(minorValue);
+    setCustomMinorRequirementMap(prev => {
+      const current = prev[key] || createDefaultCustomMinorRequirementList();
+      if (current.length >= MAX_CUSTOM_MINOR_REQUIREMENTS) return prev;
+      return { ...prev, [key]: [...current, ""] };
+    });
+  };
+
+  const addCustomMajor = (selectMajorValue) => {
     const trimmed = newCustomMajorName.trim();
     if (!trimmed) return;
     if (customMajors.some(item => item.name.toLowerCase() === trimmed.toLowerCase())) return;
     const entry = { id: generateCustomMajorId(), name: trimmed };
     const newValue = createCustomMajorOptionValue(entry.id);
     setCustomMajors(prev => [...prev, entry]);
-    if (!primaryMajor) {
+    setCustomMajorRequirementMap(prev => ({
+      ...prev,
+      [newValue]: createDefaultCustomMajorRequirementList(),
+    }));
+    if (typeof selectMajorValue === "function") {
+      selectMajorValue(newValue);
+    } else if (!primaryMajor) {
       setPrimaryMajor(newValue);
     } else if (!showSecondaryMajor || secondaryMajor) {
       setPrimaryMajor(newValue);
@@ -486,6 +634,15 @@ export default function App() {
     );
     setPrimaryMajor(prev => (prev === valueToRemove ? "Custom Major" : prev));
     setSecondaryMajor(prev => (prev === valueToRemove ? "" : prev));
+    setCustomMajorRequirementMap(prev => {
+      if (!prev[valueToRemove]) return prev;
+      const next = { ...prev };
+      delete next[valueToRemove];
+      if (!next[BASE_CUSTOM_MAJOR_KEY]) {
+        next[BASE_CUSTOM_MAJOR_KEY] = createDefaultCustomMajorRequirementList();
+      }
+      return next;
+    });
     if (editingCustomMajorId === majorId) {
       setEditingCustomMajorId(null);
       setEditingCustomMajorName("");
@@ -520,13 +677,22 @@ export default function App() {
     setEditingCustomMajorName("");
   };
 
-  const addCustomMinor = () => {
+  const addCustomMinor = (selectMinorValue) => {
     const trimmed = newCustomMinorName.trim();
     if (!trimmed) return;
     if (customMinors.some(item => item.name.toLowerCase() === trimmed.toLowerCase())) return;
     const entry = { id: generateCustomMinorId(), name: trimmed };
+    const newValue = createCustomMinorOptionValue(entry.id);
     setCustomMinors(prev => [...prev, entry]);
-    setSelectedMinor(createCustomMinorOptionValue(entry.id));
+    setCustomMinorRequirementMap(prev => ({
+      ...prev,
+      [newValue]: createDefaultCustomMinorRequirementList(),
+    }));
+    if (typeof selectMinorValue === "function") {
+      selectMinorValue(newValue);
+    } else {
+      setSelectedMinor(newValue);
+    }
     setNewCustomMinorName("");
   };
 
@@ -539,6 +705,15 @@ export default function App() {
       )
     );
     setSelectedMinor(prev => (prev === valueToRemove ? "Custom Minor" : prev));
+    setCustomMinorRequirementMap(prev => {
+      if (!prev[valueToRemove]) return prev;
+      const next = { ...prev };
+      delete next[valueToRemove];
+      if (!next[BASE_CUSTOM_MINOR_KEY]) {
+        next[BASE_CUSTOM_MINOR_KEY] = createDefaultCustomMinorRequirementList();
+      }
+      return next;
+    });
     if (editingCustomMinorId === minorId) {
       setEditingCustomMinorId(null);
       setEditingCustomMinorName("");
@@ -582,9 +757,11 @@ export default function App() {
       yearLabels,
       languageWaived,
       programSelections,
-      customMajorRequirements,
+      customMajorRequirementMap,
+      customMajorRequirements: customMajorRequirementMap[BASE_CUSTOM_MAJOR_KEY] || [],
       customMajors,
-      customMinorRequirements,
+      customMinorRequirementMap,
+      customMinorRequirements: customMinorRequirementMap[BASE_CUSTOM_MINOR_KEY] || [],
       customMinors,
       primaryMajor,
       secondaryMajor,
@@ -595,7 +772,7 @@ export default function App() {
       programStateMigrated: true,
     };
     saveToLocalStorage(dataToSave);
-  }, [terms, activeTab, startYear, yearLabels, languageWaived, programSelections, customMajorRequirements, customMajors, customMinorRequirements, customMinors, primaryMajor, secondaryMajor, showSecondaryMajor, selectedMinor, showMinorPlanner, currentTermId]);
+  }, [terms, activeTab, startYear, yearLabels, languageWaived, programSelections, customMajorRequirementMap, customMajors, customMinorRequirementMap, customMinors, primaryMajor, secondaryMajor, showSecondaryMajor, selectedMinor, showMinorPlanner, currentTermId]);
 
   const updateSlot = (termId, slotIdx, updater) => {
     setTerms(prev =>
@@ -663,53 +840,97 @@ export default function App() {
     setTerms(prev => [...prev, newTerm]);
   };
 
-  const autoFillYears = () => {
-    const defaults = getDefaultTerms(startYear);
-    setTerms(defaults);
+  const handleConfirmStartYear = () => {
+    const parsedDraft = parseInt(startYearDraft, 10);
+    if (!Number.isFinite(parsedDraft)) return;
+    const normalizedYear = parsedDraft;
+    setStartYear(normalizedYear);
+    setStartYearDraft(String(normalizedYear));
+    setTerms(prev => {
+      if (!prev.length) {
+        return getDefaultTerms(normalizedYear);
+      }
+      return prev.map(term => {
+        const derivedSeason =
+          term.season ||
+          (term.id?.includes("-F") ? "Fall" :
+           term.id?.includes("-S") ? "Spring" :
+           term.id?.includes("-U") ? "Summer" :
+           term.id?.includes("-W") ? "Winter" : "Fall");
+        const baseYear = Number.isFinite(term.year)
+          ? term.year
+          : (() => {
+              const match = term.id?.match(/Y(\d+)-/);
+              return match ? parseInt(match[1], 10) : 1;
+            })();
+        const adjustedYear = baseYear || 1;
+        const actualYear =
+          derivedSeason === "Fall" || derivedSeason === "Winter"
+            ? normalizedYear + (adjustedYear - 1)
+            : normalizedYear + adjustedYear;
+        return {
+          ...term,
+          calendarYear: actualYear,
+          label: `${derivedSeason} ${actualYear}`,
+          season: derivedSeason,
+          year: adjustedYear,
+        };
+      });
+    });
     setActiveTermId(null);
     setCurrentTermId("");
   };
 
   const determineAutoCurrentTermId = useCallback(() => {
     if (!terms.length) return "";
-    const month = new Date().getMonth(); // 0-based
-    const year = new Date().getFullYear();
-    const seasonFromMonth = (m) => {
-      if (m === 0) return "Winter";
-      if (m >= 1 && m <= 4) return "Spring";
-      if (m >= 5 && m <= 7) return "Summer";
-      return "Fall";
-    };
-    const targetSeason = seasonFromMonth(month);
-    const targetYear = (() => {
-      if (targetSeason === "Fall") return year;
-      if (targetSeason === "Winter") return year;
-      if (targetSeason === "Spring") return year;
-      if (targetSeason === "Summer") return year;
-      return year;
-    })();
-    const seasonOrder = { Fall: 1, Winter: 2, Spring: 3, Summer: 4 };
+    const now = new Date();
+    const targetSeason = seasonFromMonth(now.getMonth());
+    const targetYear = now.getFullYear();
+    const targetRank = CALENDAR_SEASON_ORDER[targetSeason] || 0;
     const sorted = [...terms].sort((a, b) => {
-      if (a.calendarYear !== b.calendarYear) return (a.calendarYear || 0) - (b.calendarYear || 0);
-      return (seasonOrder[a.season] || 0) - (seasonOrder[b.season] || 0);
+      const aYear = getCalendarYearForTerm(a) || 0;
+      const bYear = getCalendarYearForTerm(b) || 0;
+      if (aYear !== bYear) return aYear - bYear;
+      const aRank = CALENDAR_SEASON_ORDER[getSeasonForTerm(a)] || 0;
+      const bRank = CALENDAR_SEASON_ORDER[getSeasonForTerm(b)] || 0;
+      return aRank - bRank;
     });
-    const exact = sorted.find(term =>
-      term.season === targetSeason && (term.calendarYear || 0) === targetYear
-    );
+    const earliest = sorted[0];
+    if (earliest) {
+      const earliestYear = getCalendarYearForTerm(earliest);
+      const earliestRank = CALENDAR_SEASON_ORDER[getSeasonForTerm(earliest)] || 0;
+      if (
+        Number.isFinite(earliestYear) &&
+        (earliestYear > targetYear ||
+          (earliestYear === targetYear && earliestRank > targetRank))
+      ) {
+        return "";
+      }
+    }
+    const exact = sorted.find(term => {
+      const termSeason = getSeasonForTerm(term);
+      const termYear = getCalendarYearForTerm(term);
+      return termSeason === targetSeason && termYear === targetYear;
+    });
     if (exact) return exact.id;
-    const future = sorted.find(term =>
-      (term.calendarYear || 0) > targetYear ||
-      ((term.calendarYear || 0) === targetYear && (seasonOrder[term.season] || 0) > (seasonOrder[targetSeason] || 0))
-    );
+    const future = sorted.find(term => {
+      const termYear = getCalendarYearForTerm(term);
+      const termSeason = getSeasonForTerm(term);
+      const termRank = CALENDAR_SEASON_ORDER[termSeason] || 0;
+      if (!Number.isFinite(termYear)) return false;
+      return termYear > targetYear || (termYear === targetYear && termRank > targetRank);
+    });
     if (future) return future.id;
     return sorted[sorted.length - 1]?.id || "";
-  }, [terms]);
+  }, [terms, startYear]);
 
   useEffect(() => {
     if (currentTermId && terms.some(term => term.id === currentTermId)) return;
     const guessed = determineAutoCurrentTermId();
     if (guessed) {
       setCurrentTermId(guessed);
+    } else if (currentTermId) {
+      setCurrentTermId("");
     }
   }, [terms, currentTermId, determineAutoCurrentTermId]);
 
@@ -724,39 +945,6 @@ export default function App() {
         label: `${season} ${newCalendarYear}`
       };
     }));
-  };
-
-  const updateStartYear = (year) => {
-    if (!Number.isFinite(year)) return;
-    setStartYear(year);
-    setTerms(prev => {
-      if (!prev.length) return prev;
-      return prev.map(term => {
-        const derivedSeason =
-          term.season ||
-          (term.id?.includes("-F") ? "Fall" :
-           term.id?.includes("-S") ? "Spring" :
-           term.id?.includes("-U") ? "Summer" :
-           term.id?.includes("-W") ? "Winter" : "Fall");
-        const baseYear = Number.isFinite(term.year) ? term.year : (() => {
-          const match = term.id?.match(/Y(\d+)-/);
-          return match ? parseInt(match[1], 10) : 1;
-        })();
-        const adjustedYear = baseYear || 1;
-        const actualYear =
-          derivedSeason === "Fall" || derivedSeason === "Winter"
-            ? year + (adjustedYear - 1)
-            : year + adjustedYear;
-        return {
-          ...term,
-          calendarYear: actualYear,
-          label: `${derivedSeason} ${actualYear}`,
-          season: derivedSeason,
-          year: adjustedYear,
-        };
-      });
-    });
-    setActiveTermId(null);
   };
 
   const updateYearLabel = (yearId, newLabel) => {
@@ -1075,6 +1263,7 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
 
         (s.tags || []).forEach(tag => {
           if (assignedTags.has(tag)) return;
+          if (DISTRIBUTION_TAG_SET.has(tag)) return;
           if (!counts[tag]) counts[tag] = 0;
           counts[tag] += 1;
           if (assignmentMap[tag]) assignmentMap[tag].push(courseInfo);
@@ -1208,9 +1397,9 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
     <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
       <div className="space-y-4">
         <PlanProgramControls
-          startYear={startYear}
-          onStartYearChange={updateStartYear}
-          onConfirmStartYear={autoFillYears}
+          startYear={startYearDraft}
+          onStartYearChange={setStartYearDraft}
+          onConfirmStartYear={handleConfirmStartYear}
           primaryMajor={primaryMajor}
           onPrimaryMajorChange={setPrimaryMajor}
           majorOptions={majorOptions}
@@ -2048,26 +2237,40 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
 
   const renderCourses = () => {
     const plannedRows = [];
+    const inProgressRows = [];
     const completedRows = [];
+    const creditGrades = new Set(["CR", "P", "MCR", "MCRD", "MNCR"]);
     terms.forEach(term => {
+      const termStatus = termStatuses[term.id] || "unspecified";
       (term.slots || []).forEach(slot => {
         if (!(slot.code || slot.title)) return;
         const row = { term: term.label, ...slot };
         const grade = (slot.grade || "").toUpperCase();
         const isLetter = LETTER_GRADE_OPTIONS.includes(grade);
-        const isCompleted = isLetter || grade === "D";
+        const isCompleted = isLetter || grade === "D" || grade === "E" || creditGrades.has(grade);
+        const isInProgressGrade = grade === "IP" || grade === "IN PROGRESS";
+
         if (isCompleted) {
           completedRows.push(row);
-        } else if (grade === "E") {
-          // Still counts toward GPA as 0 points, treat as completed
-          completedRows.push(row);
-        } else if (grade === "") {
-          plannedRows.push(row);
-        } else if (["CR", "P", "MCR", "MCRD", "MNCR"].includes(grade)) {
-          completedRows.push(row);
-        } else {
-          plannedRows.push(row);
+          return;
         }
+
+        if (grade === "" && termStatus === "current") {
+          inProgressRows.push(row);
+          return;
+        }
+
+        if (grade === "" && termStatus === "past") {
+          completedRows.push(row);
+          return;
+        }
+
+        if (isInProgressGrade) {
+          inProgressRows.push(row);
+          return;
+        }
+
+        plannedRows.push(row);
       });
     });
 
@@ -2111,7 +2314,8 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
 
     return (
       <div className="mt-4 space-y-4">
-        {renderCourseTable(plannedRows, "Planned / In-progress courses")}
+        {renderCourseTable(inProgressRows, "In-progress courses")}
+        {renderCourseTable(plannedRows, "Planned courses")}
         {renderCourseTable(completedRows, "Completed courses")}
       </div>
     );
@@ -2195,18 +2399,19 @@ const renderMajorPlannerCard = (majorValue, setMajorValue, cardTitle = "Major Pl
   let content = null;
 
   if (normalizedKey === "Custom Major") {
+    const activeRequirements = getCustomMajorRequirementsForValue(majorValue);
     content = (
       <CustomMajorManager
         displayLabel={selectedLabel || "Custom Major"}
         majorValue={majorValue}
         onMajorChange={setMajorValue}
-        customMajorRequirements={customMajorRequirements}
-        onRequirementChange={updateCustomRequirement}
-        onAddRequirement={addCustomRequirementRow}
+        customMajorRequirements={activeRequirements}
+        onRequirementChange={(idx, value) => updateCustomMajorRequirement(majorValue, idx, value)}
+        onAddRequirement={() => addCustomMajorRequirementRow(majorValue)}
         customMajors={customMajors}
         newCustomMajorName={newCustomMajorName}
         onCustomMajorNameChange={setNewCustomMajorName}
-        onAddCustomMajor={addCustomMajor}
+        onAddCustomMajor={() => addCustomMajor(setMajorValue)}
         editingCustomMajorId={editingCustomMajorId}
         editingCustomMajorName={editingCustomMajorName}
         onEditingCustomMajorNameChange={setEditingCustomMajorName}
@@ -2268,19 +2473,20 @@ const renderMinorPlannerCard = (onRemove) => {
   }
 
   if (normalizedMinorKey === "Custom Minor") {
+    const activeMinorRequirements = getCustomMinorRequirementsForValue(selectedMinor);
     return (
       <CustomMinorManager
         displayLabel={selectedMinorLabel || "Custom Minor"}
         minorValue={selectedMinor}
         onMinorChange={setSelectedMinor}
         minorOptions={minorOptions}
-        customMinorRequirements={customMinorRequirements}
-        onRequirementChange={updateCustomMinorRequirement}
-        onAddRequirement={addCustomMinorRequirementRow}
+        customMinorRequirements={activeMinorRequirements}
+        onRequirementChange={(idx, value) => updateCustomMinorRequirement(selectedMinor, idx, value)}
+        onAddRequirement={() => addCustomMinorRequirementRow(selectedMinor)}
         customMinors={customMinors}
         newCustomMinorName={newCustomMinorName}
         onCustomMinorNameChange={setNewCustomMinorName}
-        onAddCustomMinor={addCustomMinor}
+        onAddCustomMinor={() => addCustomMinor(setSelectedMinor)}
         editingCustomMinorId={editingCustomMinorId}
         editingCustomMinorName={editingCustomMinorName}
         onEditingCustomMinorNameChange={setEditingCustomMinorName}

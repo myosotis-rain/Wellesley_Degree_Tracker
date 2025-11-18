@@ -35,6 +35,16 @@ export default function AmericanStudiesPlanner({ majorReq, courses }) {
             </div>
           </div>
         </div>
+
+        <div className="rounded-lg border p-3">
+          <div className="mb-2 text-sm font-medium">Electives</div>
+          <div className="rounded bg-slate-50 px-3 py-2 text-center">
+            <div className="text-[0.55rem] uppercase text-slate-500">Interdisciplinary</div>
+            <div className="text-base font-semibold text-slate-900">
+              {progress.electivesCount}/{progress.electivesRequired}
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="rounded-lg border p-3">

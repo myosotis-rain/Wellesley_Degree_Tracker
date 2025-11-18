@@ -219,7 +219,7 @@ export const majorRequirements = {
     requiredCourses: ["MATH 115", "MATH 116", "MATH 205", "MATH 206", "MATH 302", "MATH 305"],
     electiveCourses: 2,
     description:
-      "Mathematics majors build computational fluency, extend concepts to new contexts, represent real-world patterns with mathematical structures, communicate precise arguments, and appreciate math as an evolving, creative discipline. The major includes calculus (MATH 115 plus MATH 116 or MATH 120), the 200-level linear algebra/advanced calculus pair (MATH 205 and MATH 206), the 300-level algebra/analysis duo (MATH 302 and MATH 305), and at least two additional 300-level MATH units (excluding independent study). Across the plan you must accumulate eight MATH/STAT courses at the 200 level or above and deliver the department’s junior/senior presentation.",
+      "Mathematics centers on the calculus sequence, the MATH 205/206 core, the MATH 302/305 seminar pair, plus two additional 300-level MATH units while reaching eight advanced MATH/STAT courses and the junior/senior presentation.",
     prerequisites:
       "Complete MATH 115 and either MATH 116 or MATH 120 (or equivalent placement) before moving into the 200-level core. Finish prerequisites for MATH 302 and MATH 305 before junior year so the upper-level sequence stays on track.",
     mathStructure: {
@@ -239,7 +239,7 @@ export const majorRequirements = {
     electiveCourses: 3,
     mathRequirements: ["MATH 115"],
     description:
-      "Economics majors learn to reason about scarcity, trade-offs, efficiency versus equity, global interdependence, macro stabilization, and long-run growth so they can craft and critique evidence-based policy arguments in writing and speech. The major requires nine ECON units that cover introductory and intermediate microeconomics (ECON 101/101P and ECON 201), introductory and intermediate macroeconomics (ECON 102/102P and ECON 202), the statistics/econometrics sequence (ECON 103 and ECON 203), at least two 300-level ECON courses taken at Wellesley (ordinarily not ECON 350/360/370), and electives that can include QR 260/STAT 260 or QR 309/STAT 309.",
+      "The Economics major spans introductory/intermediate micro and macro, the statistics/econometrics pair, two on-campus 300-level seminars, and electives (including approved QR/STAT substitutes). Plan for nine ECON-coded units total.",
     prerequisites:
       "Complete one semester of calculus at the level of MATH 115 or above before taking ECON 201, ECON 202, or ECON 203. If you replace ECON 103 with STAT 160, STAT 218, PSYC 105, or PSYC 205, add another ECON elective so the major still includes nine ECON units.",
     econStructure: {
