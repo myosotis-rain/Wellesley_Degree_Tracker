@@ -3,5 +3,5 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig(({ command }) => ({
   plugins: [react()],
-  base: command === "build" ? "/Wellesley_Degree_Tracker/" : "/",
+  base: command === "build" ? "./" : "/",
 }));
