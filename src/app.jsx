@@ -79,6 +79,7 @@ const MIN_CUSTOM_MINOR_REQUIREMENTS = 6;
 const MAX_CUSTOM_MINOR_REQUIREMENTS = 12;
 const DEFAULT_CUSTOM_MINOR_COUNT = 6;
 const SUBJECT_NAME_SET = new Set(subjectOptions);
+const DISTRIBUTION_TAG_PRIORITY = ["LL", "ARTS", "SBA", "EC", "REP", "HST", "NPS", "MM"];
 
 
 const calculateGPA = (terms = []) => {
@@ -1017,13 +1018,44 @@ const getTotalUnitsStat = (majorName, courses = []) => {
   };
 };
 
+const chooseDistributionTag = (courseTags = [], counts = {}) => {
+  const candidates = courseTags.filter(tag => DISTRIBUTION_TAG_PRIORITY.includes(tag));
+  if (!candidates.length) return null;
+
+  const need = (tag) => (counts[tag] || 0);
+
+  if (candidates.includes("LL") && need("LL") < 1) return "LL";
+  if (candidates.includes("ARTS") && need("ARTS") < 1) return "ARTS";
+  if (candidates.includes("SBA") && need("SBA") < 1) return "SBA";
+
+  const humanitiesTags = candidates.filter(tag => ["EC", "REP", "HST"].includes(tag));
+  const humanitiesCount = Math.min((counts.EC || 0) + (counts.REP || 0) + (counts.HST || 0), 2);
+  if (humanitiesTags.length && humanitiesCount < 2) {
+    return humanitiesTags.sort((a, b) => (counts[a] || 0) - (counts[b] || 0))[0];
+  }
+
+  if (candidates.includes("NPS") && need("NPS") < 1) return "NPS";
+  if (candidates.includes("MM") && need("MM") < 1) return "MM";
+
+  for (const tag of DISTRIBUTION_TAG_PRIORITY) {
+    if (candidates.includes(tag)) return tag;
+  }
+
+  return candidates[0];
+};
+
 
   // ---- Progress calculations ----
   const progress = useMemo(() => {
     const allRequirements = [...seedRequirements, ...internalRequirements];
     const counts = Object.fromEntries(allRequirements.map(r => [r.id, 0]));
+    DISTRIBUTION_TAG_PRIORITY.forEach(tag => {
+      if (!counts[tag]) counts[tag] = 0;
+    });
     let totalUnits = 0;
     let level300 = 0;
+
+    const assignmentMap = Object.fromEntries(allRequirements.map(r => [r.id, []]));
 
     terms.forEach(t =>
       t.slots.forEach(s => {
@@ -1031,10 +1063,28 @@ const getTotalUnitsStat = (majorName, courses = []) => {
         const credits = Number(s.credits || 0);
         totalUnits += credits;
         if (s.level >= 300) level300 += 1;
-        s.tags.forEach(tag => {
+        const courseInfo = { term: t.label, code: s.code, title: s.title, credits };
+        const chosenDistributionTag = chooseDistributionTag(s.tags || [], counts);
+        const assignedTags = new Set();
+
+        if (chosenDistributionTag) {
+          assignedTags.add(chosenDistributionTag);
+          counts[chosenDistributionTag] = (counts[chosenDistributionTag] || 0) + 1;
+          if (assignmentMap[chosenDistributionTag]) assignmentMap[chosenDistributionTag].push(courseInfo);
+        }
+
+        (s.tags || []).forEach(tag => {
+          if (assignedTags.has(tag)) return;
           if (!counts[tag]) counts[tag] = 0;
           counts[tag] += 1;
+          if (assignmentMap[tag]) assignmentMap[tag].push(courseInfo);
         });
+
+        if (s.level >= 300) {
+          if (assignmentMap["300"]) assignmentMap["300"].push(courseInfo);
+        }
+
+        if (assignmentMap["UNITS"]) assignmentMap["UNITS"].push(courseInfo);
       })
     );
 
@@ -1106,6 +1156,7 @@ const getTotalUnitsStat = (majorName, courses = []) => {
       overall,
       totalUnits,
       dist3x3: { g1, g2, g3 },
+      assignmentMap,
     };
   }, [terms, languageWaived]);
 
@@ -1866,91 +1917,134 @@ const getTotalUnitsStat = (majorName, courses = []) => {
   );
   };
 
-  const renderRequirements = () => (
-    <div className="mt-4 space-y-4">
-      {/* General Requirements */}
-      <div className="rounded-2xl border bg-white p-4 text-xs">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="text-sm font-semibold text-slate-900">
-            General Requirements
-          </div>
-          <label className="flex items-center gap-2 text-[0.7rem]">
-            <input
-              name="languageWaived"
-              type="checkbox"
-              checked={languageWaived}
-              onChange={(e) => setLanguageWaived(e.target.checked)}
-              className="rounded"
-            />
-            Waive Language Requirement
-          </label>
-        </div>
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {progress.detail.filter(r => generalRequirements.some(gr => gr.id === r.id)).map(r => (
-            <div key={r.id} className="rounded-xl border px-3 py-2">
-              <div className="mb-1 flex items-center justify-between">
-                <span className="text-[0.75rem] font-medium text-slate-800">
-                  {r.label}
-                  {r.id === "LANG" && languageWaived && (
-                    <span className="ml-1 text-green-600">(Waived)</span>
-                  )}
-                  {r.id === "PE" && (
-                    <span className="ml-2 text-[0.6rem] text-slate-500">
-                      (*One PE class = 4 units)
-                    </span>
-                  )}
-                </span>
-                <span className="text-[0.7rem] text-slate-500">
-                  {r.have}/{r.targetCount}
-                </span>
-              </div>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
-                <div
-                  className={cx(
-                    "h-full rounded-full",
-                    r.id === "LANG" && languageWaived ? "bg-green-600" : "bg-indigo-600"
-                  )}
-                  style={{ width: `${r.pct * 100}%` }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+  const renderRequirements = () => {
+    const assignments = progress.assignmentMap || {};
+    const uniqueCourses = (list = []) => {
+      const seen = new Set();
+      return list.filter(course => {
+        const key = `${course.term}|${course.code}|${course.title}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    };
+    const getRequirementCourses = (reqId) => {
+      switch (reqId) {
+        case "GROUP1_TOTAL":
+          return uniqueCourses([
+            ...(assignments.LL || []),
+            ...(assignments.ARTS || []),
+          ]);
+        case "GROUP2_TOTAL":
+          return uniqueCourses([
+            ...(assignments.SBA || []),
+            ...(assignments.EC || []),
+            ...(assignments.REP || []),
+            ...(assignments.HST || []),
+          ]);
+        case "GROUP3_TOTAL":
+          return uniqueCourses([
+            ...(assignments.NPS || []),
+            ...(assignments.MM || []),
+          ]);
+        default:
+          return uniqueCourses(assignments[reqId] || []);
+      }
+    };
 
-      {/* Distribution Requirements */}
-      <div className="rounded-2xl border bg-white p-4 text-xs">
-        <div className="mb-3 text-sm font-semibold text-slate-900">
-          Distribution Requirements (3-3-3)
+    const renderRequirementCard = (req, extraNote) => {
+      const assignedCourses = req.id === "UNITS" ? [] : getRequirementCourses(req.id);
+      return (
+        <div key={req.id} className="rounded-xl border px-3 py-2">
+          <div className="mb-1 flex items-center justify-between">
+            <span className="text-[0.75rem] font-medium text-slate-800">
+              {req.label}
+              {req.id === "LANG" && languageWaived && (
+                <span className="ml-1 text-green-600">(Waived)</span>
+              )}
+              {req.id === "PE" && (
+                <span className="ml-2 text-[0.6rem] text-slate-500">
+                  (*One PE class = 4 units)
+                </span>
+              )}
+            </span>
+            <span className="text-[0.7rem] text-slate-500">
+              {req.have}/{req.targetCount}
+            </span>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+            <div
+              className={cx(
+                "h-full rounded-full",
+                req.id === "LANG" && languageWaived ? "bg-green-600" : "bg-indigo-600"
+              )}
+              style={{ width: `${req.pct * 100}%` }}
+            />
+          </div>
+          {extraNote && (
+            <div className="mt-1 text-[0.65rem] text-slate-500">{extraNote}</div>
+          )}
+          {assignedCourses.length > 0 && (
+            <ul className="mt-2 text-[0.65rem] text-slate-500">
+              {assignedCourses.map((course, idx) => (
+                <li key={idx}>
+                  {course.code || course.title || "Course"} ({course.term})
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
-        <div className="grid gap-3 md:grid-cols-1 lg:grid-cols-3">
-          {progress.detail.filter(r => distributionRequirements.some(dr => dr.id === r.id)).map(r => (
-            <div key={r.id} className="rounded-xl border px-3 py-2">
-              <div className="mb-1 flex items-center justify-between">
-                <span className="text-[0.75rem] font-medium text-slate-800">
-                  {r.label}
-                </span>
-                <span className="text-[0.7rem] text-slate-500">
-                  {r.have}/{r.targetCount}
-                </span>
-              </div>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
-                <div
-                  className="h-full rounded-full bg-green-600"
-                  style={{ width: `${r.pct * 100}%` }}
-                />
-              </div>
-              <div className="mt-1 text-[0.65rem] text-slate-500">
-                {r.id === 'GROUP1_TOTAL' && '(≥1 Language/Lit + ≥1 Arts, 3 total)'}
-                {r.id === 'GROUP2_TOTAL' && '(1 SBA + 2 from EC/REP/HST)'}
-                {r.id === 'GROUP3_TOTAL' && '(1 Science + 1 Math + 1 more, ≥1 lab)'}
-              </div>
+      );
+    };
+
+    return (
+      <div className="mt-4 space-y-4">
+        <div className="rounded-2xl border bg-white p-4 text-xs">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="text-sm font-semibold text-slate-900">
+              General Requirements
             </div>
-          ))}
+            <label className="flex items-center gap-2 text-[0.7rem]">
+              <input
+                name="languageWaived"
+                type="checkbox"
+                checked={languageWaived}
+                onChange={(e) => setLanguageWaived(e.target.checked)}
+                className="rounded"
+              />
+              Waive Language Requirement
+            </label>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {progress.detail
+              .filter(r => generalRequirements.some(gr => gr.id === r.id))
+              .map(r => renderRequirementCard(r))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border bg-white p-4 text-xs">
+          <div className="mb-3 text-sm font-semibold text-slate-900">
+            Distribution Requirements (3-3-3)
+          </div>
+          <div className="grid gap-3 md:grid-cols-1 lg:grid-cols-3">
+            {progress.detail
+              .filter(r => distributionRequirements.some(dr => dr.id === r.id))
+              .map(r => {
+                const note =
+                  r.id === "GROUP1_TOTAL"
+                    ? "(≥1 Language/Lit + ≥1 Arts, 3 total)"
+                    : r.id === "GROUP2_TOTAL"
+                      ? "(1 SBA + 2 from EC/REP/HST)"
+                      : r.id === "GROUP3_TOTAL"
+                        ? "(1 Science + 1 Math + 1 more, ≥1 lab)"
+                        : "";
+                return renderRequirementCard(r, note);
+              })}
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderCourses = () => {
     const plannedRows = [];

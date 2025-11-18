@@ -1,10 +1,19 @@
 import React from "react";
 
-const ProgramSelect = ({ label, id, value, onChange, options, placeholder = "Select", disabled = false }) => (
-  <div className="flex items-center gap-1.5 whitespace-nowrap">
+const ProgramSelect = ({
+  label,
+  id,
+  value,
+  onChange,
+  options,
+  placeholder = "Select",
+  disabled = false,
+  className = "",
+}) => (
+  <div className={`flex min-w-0 items-center gap-1.5 ${className}`}>
     {label && (
       <label
-        className="text-[0.75rem] font-semibold uppercase tracking-wide text-slate-500"
+        className="flex-none whitespace-nowrap text-[0.75rem] font-semibold uppercase tracking-wide text-slate-500"
         htmlFor={id}
       >
         {label}
@@ -14,7 +23,7 @@ const ProgramSelect = ({ label, id, value, onChange, options, placeholder = "Sel
       id={id}
       name={id}
       autoComplete="off"
-      className="w-full rounded border px-2 py-1 text-sm"
+      className="min-w-0 flex-1 rounded border px-2 py-1 text-sm"
       value={value}
       onChange={(e) => onChange(e.target.value)}
       disabled={disabled}
@@ -67,19 +76,18 @@ export default function PlanProgramControls({
           Confirm
         </button>
       </div>
-      <div className="mt-2 grid gap-3 md:grid-cols-2">
-        <div className="flex items-center gap-2">
-          <ProgramSelect
-            label="Program 1"
-            id="program-1-select"
-            value={primaryMajor}
-            onChange={onPrimaryMajorChange}
-            options={majorOptions}
-          />
-        </div>
-        <div className="flex items-center gap-2">
+      <div className="mt-3 flex flex-nowrap items-center gap-3 overflow-hidden">
+        <ProgramSelect
+          label="Program 1"
+          id="program-1-select"
+          value={primaryMajor}
+          onChange={onPrimaryMajorChange}
+          options={majorOptions}
+          className="flex-1"
+        />
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <label
-            className="text-[0.75rem] font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap"
+            className="flex-none whitespace-nowrap text-[0.75rem] font-semibold uppercase tracking-wide text-slate-500"
             htmlFor="program-2-mode"
           >
             Program 2
@@ -88,7 +96,7 @@ export default function PlanProgramControls({
             id="program-2-mode"
             name="program2Mode"
             autoComplete="off"
-            className="w-24 rounded border px-2 py-1 text-sm"
+            className="w-20 flex-none rounded border px-2 py-1 text-sm"
             value={secondaryMode}
             onChange={(e) => onSecondaryModeChange(e.target.value)}
           >
@@ -104,6 +112,7 @@ export default function PlanProgramControls({
               onChange={secondaryMode === "Major" ? onSecondaryMajorChange : onSelectedMinorChange}
               options={secondaryMode === "Major" ? majorOptions : minorOptions}
               placeholder="Select"
+              className="flex-1"
             />
           )}
         </div>
