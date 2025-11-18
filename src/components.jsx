@@ -472,18 +472,23 @@ export function TermDetailModal({
                   value={slot.title}
                   onChange={(e) => updateField(i, "title", e.target.value)}
                 />
-                <input
-                  name={`slot-${i}-credits`}
-                  className="rounded-lg border px-2 py-1 text-[0.7rem] md:col-span-1"
-                  placeholder="Units"
-                  type="number"
-                  min="0"
-                  step="0.25"
-                  value={slot.credits}
-                  onChange={(e) =>
-                    updateField(i, "credits", parseFloat(e.target.value || "0"))
-                  }
-                />
+                <div className="md:col-span-1 flex items-center justify-end gap-2">
+                  <input
+                    name={`slot-${i}-credits`}
+                    className="w-16 rounded-lg border px-2 py-1 text-[0.7rem] text-right"
+                    placeholder="Units"
+                    type="number"
+                    min="0"
+                    step="0.25"
+                    value={slot.credits}
+                    onChange={(e) =>
+                      updateField(i, "credits", parseFloat(e.target.value || "0"))
+                    }
+                  />
+                  <span className="text-[0.65rem] text-slate-500 whitespace-nowrap">
+                    {slot.credits === 1 ? "unit" : "units"}
+                  </span>
+                </div>
               </div>
 
               <div className="mt-2 grid gap-2 md:grid-cols-3">

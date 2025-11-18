@@ -332,7 +332,8 @@ const getRequirementOptionsForMajor = (majorName) => {
 export default function App() {
   const savedDataRef = useRef(resetProgramState(loadFromLocalStorage()));
   const savedData = savedDataRef.current || null;
-  const initialStartYear = savedData?.startYear || 2024;
+  const currentYear = new Date().getFullYear();
+  const initialStartYear = savedData?.startYear || currentYear;
   const getInitialCustomMinorRequirements = () => {
     const savedList = Array.isArray(savedData?.customMinorRequirements)
       ? savedData.customMinorRequirements.slice(0, MAX_CUSTOM_MINOR_REQUIREMENTS)
@@ -1990,7 +1991,7 @@ const renderMajorPlannerCard = (majorValue, setMajorValue, cardTitle = "Major Pl
     if (target) return { earned: 0, target };
     return null;
   })();
-  const progressLabel = matchingProgram ? "Major progress" : "Progress";
+  const progressLabel = matchingProgram ? "Units Toward Major" : "Units";
   const deriveRingStat = (stat) => {
     if (stat?.target) {
       const earned = stat.earned ?? 0;
