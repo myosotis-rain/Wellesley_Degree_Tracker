@@ -61,6 +61,7 @@ import {
   computeDsProgress,
   computeEalcProgress,
   computeEasProgress,
+  computeEsProgress,
   computeEducationProgress,
 } from "./majors/progress.js";
 import { getMajorRenderer } from "./majors/renderers/index.js";
@@ -95,6 +96,7 @@ const DETAILED_MAJOR_VALUES = new Set([
   "East Asian Languages and Cultures",
   "East Asian Studies",
   "Education Studies",
+  "Environmental Studies",
 ]);
 
 const MAX_CUSTOM_MAJOR_REQUIREMENTS = 15;
@@ -388,6 +390,13 @@ const summarizeProgramProgress = (programName, courses, programMeta = {}) => {
       ealcProgress: computeEalcProgress(courses, config.ealcStructure),
     };
   }
+  if (config.esStructure) {
+    return {
+      config,
+      isEnvironmentalStudies: true,
+      esProgress: computeEsProgress(courses, config.esStructure),
+    };
+  }
   if (config.educationStructure) {
     return {
       config,
@@ -528,6 +537,14 @@ const programRequirementOptionSets = {
     { id: "educ-research", label: "Education Research & Theory", required: 4 },
     { id: "educ-capstone", label: "Capstone / Thesis", required: 1 },
     { id: "educ-300", label: "300-level EDUC Courses", required: 2 },
+  ],
+  "Environmental Studies": [
+    { id: "es-core", label: "Core: ES 102 & ES 214", required: 2 },
+    { id: "es-science", label: "Science / NPS courses", required: 2 },
+    { id: "es-humanities", label: "ES Humanities (HST/LL/REP/ARTS)", required: 1 },
+    { id: "es-electives", label: "ES Electives", required: 4 },
+    { id: "es-300", label: "300-level ES elective", required: 1 },
+    { id: "es-capstone", label: "Capstone (ES 300/399)", required: 1 },
   ],
   "Custom Major": [],
 };
@@ -2434,6 +2451,35 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                       })()}
                     </div>
                   )}
+                  {program.type !== "None" && program.value && summary && summary.isEnvironmentalStudies && summary.esProgress && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      {renderProgramRing()}
+                      {(() => {
+                        const es = summary.esProgress;
+                        const humanitiesAssigned = countAssignedRequirement(programCourses, program.id, "es-humanities");
+                        const cards = [
+                          { label: "Core", value: `${es.coreStatus.filter(step => step.completed).length}/${es.coreStatus.length}` },
+                          { label: "Science courses", value: `${es.scienceCount}/2` },
+                          { label: "Lab science", value: es.scienceLabSatisfied ? "✓" : "Pending" },
+                          { label: "Elective units", value: `${es.electiveUnits.toFixed(2)}/${es.electiveUnitTarget}` },
+                          { label: "Full-unit electives", value: `${es.nonIndependentFullCount}/${es.minFullCourses}` },
+                          { label: "300-level elective", value: `${es.level300Count}/${es.level300Required}` },
+                          { label: "Capstone", value: es.capstoneCompleted ? (es.capstoneCourse || "✓") : "Pending" },
+                          { label: "ES Humanities", value: `${humanitiesAssigned}/1` },
+                        ];
+                        return (
+                          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                            {cards.map(card => (
+                              <div key={card.label} className="rounded border px-3 py-2 h-full text-center">
+                                <div className="text-[0.55rem] uppercase text-slate-500">{card.label}</div>
+                                <div className="text-base font-semibold text-slate-900">{card.value}</div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
                   {program.type !== "None" && program.value && summary && summary.isClassics && summary.classicsProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
                       {renderProgramRing()}
@@ -2568,7 +2614,7 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                     </div>
                   )}
 
-                  {program.type !== "None" && program.value && summary && !summary.isSpecial && !summary.isCS && !summary.isBio && !summary.isAnthro && !summary.isEnglish && !summary.isAfr && !summary.isAmst && !summary.isArchitecture && !summary.isStudioArt && !summary.isArtHistory && !summary.isBiochemistry && !summary.isChemicalPhysics && !summary.isChemistry && !summary.isCams && !summary.isClassics && !summary.isClsc && !summary.isComparativeLit && !summary.isDataScience && !summary.isEastAsianStudies && !summary.isEducationStudies && (
+                  {program.type !== "None" && program.value && summary && !summary.isSpecial && !summary.isCS && !summary.isBio && !summary.isAnthro && !summary.isEnglish && !summary.isAfr && !summary.isAmst && !summary.isArchitecture && !summary.isStudioArt && !summary.isArtHistory && !summary.isBiochemistry && !summary.isChemicalPhysics && !summary.isChemistry && !summary.isCams && !summary.isClassics && !summary.isClsc && !summary.isComparativeLit && !summary.isDataScience && !summary.isEastAsianStudies && !summary.isEducationStudies && !summary.isEnvironmentalStudies && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
                       {renderProgramRing()}
                       {(() => {

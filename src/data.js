@@ -549,6 +549,62 @@ export const majorRequirements = {
       capstoneOptions: ["DS 340H", "DS 360", "DS 370"],
     },
   },
+  "Environmental Studies": {
+    unitTarget: 10,
+    description:
+      "Environmental Studies combines interdisciplinary core seminars, paired science requirements, a humanities-facing ES course, four electives (≥4.0 units with advanced depth), and a senior capstone.",
+    prerequisites:
+      "Plan introductory science with lab access early (ES 100/101/111, BISC 108/111/113, or GEOS 101) and consult your advisor on focus areas plus the ES 300/399 capstone timeline.",
+    esStructure: {
+      totalRequired: 10,
+      coreCourses: [
+        { id: "es-core-102", label: "ES 102", options: ["ES 102"] },
+        { id: "es-core-214", label: "ES 214 / POL2 214", options: ["ES 214", "POL2 214"] },
+      ],
+      scienceIntroOptions: ["ES 100", "ES 101", "ES 111", "GEOS 101", "BISC 108", "BISC 111", "BISC 113", "BISC 116", "CHEM 103", "CHEM 116"],
+      scienceCourseOptions: [
+        "ES 100", "ES 101", "ES 111", "GEOS 101",
+        "BISC 108", "BISC 111", "BISC 113", "BISC 116",
+        "BISC 201", "BISC 202", "BISC 209", "BISC 210",
+        "BISC 308", "BISC 310", "BISC 314",
+        "CHEM 103", "CHEM 105", "CHEM 116", "CHEM 120",
+        "GEOS 102", "GEOS 208", "GEOS 304", "GEOS 315",
+      ],
+      labCourses: [
+        "ES 101", "ES 111", "GEOS 101",
+        "BISC 108", "BISC 111", "BISC 113", "BISC 116",
+        "BISC 201", "BISC 202", "BISC 209", "BISC 210",
+        "BISC 308", "BISC 314",
+        "CHEM 103", "CHEM 105", "CHEM 116", "CHEM 120",
+        "GEOS 102", "GEOS 304", "GEOS 315",
+      ],
+      humanitiesManualTracking: true,
+      electiveStructure: {
+        creditTarget: 4,
+        allowedDepartments: ["Environmental Studies"],
+        allowedCourseCodes: [
+          "AFR 304", "POL3 302",
+          "ANTH 222",
+          "ARTH 266", "ARTH 317",
+          "BISC 108", "BISC 111", "BISC 113", "BISC 116",
+          "BISC 198", "BISC 201", "BISC 202", "BISC 209", "BISC 210",
+          "BISC 308", "BISC 310", "BISC 314",
+          "CHEM 103", "CHEM 105", "CHEM 120",
+          "ECON 328",
+          "GEOS 102", "GEOS 208", "GEOS 304", "GEOS 315",
+          "HIST 320",
+          "POL4 311",
+          "QR 260", "STAT 260", "STAT 160",
+          "WGST 302",
+        ],
+        independentStudyCourses: ["ES 250", "ES 250H", "ES 350", "ES 350H", "ES 355", "ES 360", "ES 365", "ES 370", "ES 398", "ES 399H"],
+        minFullCourses: 2,
+        minFullCoursesLabel: "Full-unit non-independent electives",
+        min300LevelFullCourses: 1,
+      },
+      capstoneOptions: ["ES 300", "ES 399"],
+    },
+  },
   "East Asian Studies": {
     unitTarget: 10,
     description:

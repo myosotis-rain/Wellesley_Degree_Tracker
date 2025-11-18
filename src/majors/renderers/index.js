@@ -21,6 +21,7 @@ import DataScienceMajorPlanner from "./DataScienceMajorPlanner.jsx";
 import EalcMajorPlanner from "./EalcMajorPlanner.jsx";
 import EastAsianStudiesPlanner from "./EastAsianStudiesPlanner.jsx";
 import EducationStudiesPlanner from "./EducationStudiesPlanner.jsx";
+import EnvironmentalStudiesPlanner from "./EnvironmentalStudiesPlanner.jsx";
 import GenericMajorPlanner from "./GenericMajorPlanner.jsx";
 
 export const majorRendererRegistry = {
@@ -48,6 +49,7 @@ export const majorRendererRegistry = {
   "East Asian Languages and Cultures": EalcMajorPlanner,
   "East Asian Studies": EastAsianStudiesPlanner,
   "Education Studies": EducationStudiesPlanner,
+  "Environmental Studies": EnvironmentalStudiesPlanner,
 };
 
 export const getMajorRenderer = (majorName) => majorRendererRegistry[majorName] || GenericMajorPlanner;
