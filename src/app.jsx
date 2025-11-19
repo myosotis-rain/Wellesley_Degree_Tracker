@@ -1928,7 +1928,7 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                             {countAssignedRequirement(programCourses, program.id, "mas-capstone") > 0 ||
                             summary.masProgress.capstone.length > 0
                               ? "✓ Completed"
-                              : "Not yet"}
+                              : "---"}
                           </div>
                         </div>
                         <div className="rounded-lg border border-indigo-100 bg-white px-3 py-2 text-center flex flex-col justify-between">
@@ -2607,7 +2607,7 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                         <div className="rounded border px-3 py-2 text-center">
                           <div className="text-[0.55rem] uppercase text-slate-500">Experience</div>
                           <div className="text-sm font-semibold text-slate-900">
-                            {countAssignedRequirement(programCourses, program.id, "anth-experience") > 0 || program.experienceComplete ? "Marked" : "Not yet"}
+                            {countAssignedRequirement(programCourses, program.id, "anth-experience") > 0 || program.experienceComplete ? "Marked" : "---"}
                           </div>
                         </div>
                       </div>
