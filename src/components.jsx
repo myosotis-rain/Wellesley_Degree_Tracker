@@ -48,7 +48,7 @@ export const MiniReqBar = ({ label, have, target, pct }) => {
       </div>
       <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
         <div
-          className="h-full rounded-full bg-indigo-500"
+          className="h-full rounded-full bg-blue-500"
           style={{ width: `${pctValue * 100}%` }}
         />
       </div>
@@ -439,7 +439,7 @@ export function TermDetailModal({
                       {slot.tags.map(t => (
                         <span
                           key={t}
-                          className="rounded-full bg-indigo-50 px-2 py-0.5 text-[0.6rem] text-blue-700"
+                          className="rounded-full bg-blue-50 px-2 py-0.5 text-[0.6rem] text-blue-700"
                         >
                           {t}
                         </span>

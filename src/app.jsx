@@ -1754,7 +1754,7 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
               </div>
               <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
                 <div
-                  className="h-full rounded-full bg-indigo-500"
+                  className="h-full rounded-full bg-blue-500"
                   style={{ width: `${getReq("PE").pct * 100}%` }}
                 />
               </div>
@@ -1922,7 +1922,7 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                         );
                       })()}
                       <div className="grid gap-2 sm:grid-cols-3">
-                        <div className="rounded-lg border border-indigo-100 bg-white px-3 py-2 text-center flex flex-col justify-between">
+                        <div className="rounded-lg border border-blue-100 bg-white px-3 py-2 text-center flex flex-col justify-between">
                           <div className="text-[0.55rem] uppercase tracking-wide text-slate-500">Capstone Ready</div>
                           <div className="text-sm font-semibold text-slate-900">
                             {countAssignedRequirement(programCourses, program.id, "mas-capstone") > 0 ||
@@ -1931,13 +1931,13 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                               : "---"}
                           </div>
                         </div>
-                        <div className="rounded-lg border border-indigo-100 bg-white px-3 py-2 text-center flex flex-col justify-between">
+                        <div className="rounded-lg border border-blue-100 bg-white px-3 py-2 text-center flex flex-col justify-between">
                           <div className="text-[0.55rem] uppercase tracking-wide text-slate-500">Courses above 100</div>
                           <div className="text-base font-semibold text-slate-900">
                             {summary.masProgress.totals.upperLevelCourses}/8+
                           </div>
                         </div>
-                        <div className="rounded-lg border border-indigo-100 bg-white px-3 py-2 text-center flex flex-col justify-between">
+                        <div className="rounded-lg border border-blue-100 bg-white px-3 py-2 text-center flex flex-col justify-between">
                           <div className="text-[0.55rem] uppercase tracking-wide text-slate-500">300-level courses</div>
                           <div className="text-base font-semibold text-slate-900">
                             {summary.masProgress.totals.level300Count}/2+
@@ -2761,7 +2761,7 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
             <div
               className={cx(
                 "h-full rounded-full",
-                req.id === "LANG" && languageWaived ? "bg-green-600" : "bg-indigo-600"
+                req.id === "LANG" && languageWaived ? "bg-green-600" : "bg-blue-600"
               )}
               style={{ width: `${req.pct * 100}%` }}
             />
@@ -3137,7 +3137,7 @@ const renderMajor = () => {
           <button
             type="button"
             onClick={() => setShowSecondaryMajor(true)}
-            className="w-full rounded-3xl border-2 border-dashed border-slate-300 bg-white/60 px-4 py-3 text-sm font-semibold text-slate-600 hover:border-indigo-300 hover:text-indigo-600"
+            className="w-full rounded-3xl border-2 border-dashed border-slate-300 bg-white/60 px-4 py-3 text-sm font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-600"
           >
             + Add another major viewer
           </button>
@@ -3154,7 +3154,7 @@ const renderMajor = () => {
           <button
             type="button"
             onClick={() => setShowMinorPlanner(true)}
-            className="w-full rounded-3xl border-2 border-dashed border-slate-300 bg-white/60 px-4 py-3 text-sm font-semibold text-slate-600 hover:border-indigo-300 hover:text-indigo-600"
+            className="w-full rounded-3xl border-2 border-dashed border-slate-300 bg-white/60 px-4 py-3 text-sm font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-600"
           >
             + Add minor planner
           </button>
