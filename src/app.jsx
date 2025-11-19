@@ -1985,7 +1985,7 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                           <div>MATH 225</div>
                         </div>
                         <div className={(countAssignedRequirement(programCourses, program.id, "cs-math") > 0 || summary.csProgress.mathSatisfied) ? "text-green-600 font-semibold" : "text-slate-500 font-semibold"}>
-                          {(countAssignedRequirement(programCourses, program.id, "cs-math") > 0 || summary.csProgress.mathSatisfied) ? "✓ Done" : "Pending"}
+                          {(countAssignedRequirement(programCourses, program.id, "cs-math") > 0 || summary.csProgress.mathSatisfied) ? "✓ Done" : "---"}
                         </div>
                       </div>
                     </div>
@@ -2104,8 +2104,8 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                         const concentrationAssigned = countAssignedRequirement(programCourses, program.id, "cplt-concentration");
                         const concentration300Assigned = countAssignedRequirement(programCourses, program.id, "cplt-concentration-300");
                         const cards = [
-                          { label: "CPLT 180", value: summary.cpltProgress.requiredCourses.find(r => r.code === "CPLT 180")?.completed ? "✓" : "Pending" },
-                          { label: "CPLT 375", value: summary.cpltProgress.requiredCourses.find(r => r.code === "CPLT 375")?.completed ? "✓" : "Pending" },
+                          { label: "CPLT 180", value: summary.cpltProgress.requiredCourses.find(r => r.code === "CPLT 180")?.completed ? "✓" : "---" },
+                          { label: "CPLT 375", value: summary.cpltProgress.requiredCourses.find(r => r.code === "CPLT 375")?.completed ? "✓" : "---" },
                           { label: "CPLT units", value: `${summary.cpltProgress.cpltCount}/${summary.cpltProgress.minCpltCourses}` },
                           { label: "300-level CPLT", value: summary.cpltProgress.cplt300Count },
                           { label: "Pre-1900", value: `${pre1900Assigned}/1` },
@@ -2229,7 +2229,7 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                           { label: "BISC 200-level", value: `${bioc.bisc200.filter(step => step.completed).length}/${bioc.bisc200.length || 0}` },
                           { label: "CHEM 200-level", value: `${bioc.chem200.filter(step => step.completed).length}/${bioc.chem200.length || 0}` },
                           { label: "BISC 300-level", value: `${bioc.bisc300Count}/${bioc.bisc300Required}` },
-                          { label: "CHEM 331", value: bioc.chem331Completed ? "✓" : "Pending" },
+                          { label: "CHEM 331", value: bioc.chem331Completed ? "✓" : "---" },
                           { label: "CHEM/BIOC 300", value: `${bioc.chem300ElectiveCount}/${bioc.chem300ElectiveRequired}` },
                           { label: "Lab-designated", value: `${bioc.labCount}/${bioc.labRequired}` },
                         ];
@@ -2252,12 +2252,12 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                       {(() => {
                         const chph = summary.chphProgress;
                         const cards = [
-                          { label: "General chemistry", value: chph.generalChem.completed ? "✓" : "Pending" },
+                          { label: "General chemistry", value: chph.generalChem.completed ? "✓" : "---" },
                           { label: "Intro PHYS", value: `${chph.physicsIntroCount}/${chph.physicsIntroTotal}` },
                           { label: "Core sequence", value: `${chph.requiredCourses.filter(item => item.completed).length}/${chph.requiredCourses.length}` },
                           { label: "Lab/Flex", value: `${chph.labChoice.filter(item => item.completed).length}/${chph.labChoice.length || 1}` },
-                          { label: "CHEM 334/335", value: chph.chemAdvancedCompleted ? "✓" : "Pending" },
-                          { label: "PHYS elective", value: chph.physicsElectiveCompleted ? "✓" : "Pending" },
+                          { label: "CHEM 334/335", value: chph.chemAdvancedCompleted ? "✓" : "---" },
+                          { label: "PHYS elective", value: chph.physicsElectiveCompleted ? "✓" : "---" },
                         ];
                         return (
                           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -2282,7 +2282,7 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                           { label: "Foundations", value: `${foundationComplete}/${ds.foundation.length || 0}` },
                           { label: "CS electives", value: `${ds.csElectiveCount}/1` },
                           { label: "STAT electives", value: `${ds.statElectiveCount}/1` },
-                          { label: "Capstone", value: ds.hasCapstone ? "✓" : "Pending" },
+                          { label: "Capstone", value: ds.hasCapstone ? "✓" : "---" },
                         ];
                         return (
                           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -2303,7 +2303,7 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                       {(() => {
                         const ealc = summary.ealcProgress;
                         const cards = [
-                          { label: "Gateway", value: ealc.gatewayCompleted ? "✓" : "Pending" },
+                          { label: "Gateway", value: ealc.gatewayCompleted ? "✓" : "---" },
                           { label: "Non-language", value: `${ealc.nonLanguageCount}/${ealc.nonLanguageRequired}` },
                           { label: "Survey", value: `${ealc.surveyCount}/${ealc.surveyRequired}` },
                           { label: "300-level", value: `${ealc.level300Count}/${ealc.level300Required}` },
@@ -2323,7 +2323,7 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                               <div className="text-[0.7rem] text-slate-600">
                                 {ealc.trackResults.map(track => (
                                   <span key={track.id} className={cx("mx-1 font-semibold", track.completed ? "text-green-600" : "text-slate-500") }>
-                                    {track.label}: {track.completed ? "✓" : "Pending"}
+                                    {track.label}: {track.completed ? "✓" : "---"}
                                   </span>
                                 ))}
                               </div>
@@ -2376,9 +2376,9 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                       {(() => {
                         const education = summary.educationProgress;
                         const cards = [
-                          { label: "Core course", value: education.coreCompleted ? (education.coreFulfilledBy || "✓") : "Pending" },
+                          { label: "Core course", value: education.coreCompleted ? (education.coreFulfilledBy || "✓") : "---" },
                           { label: "Research & Theory", value: `${education.researchTheoryCount}/${education.researchTheoryRequired}` },
-                          { label: "Capstone", value: education.capstoneCompleted ? (education.capstoneFulfilledBy || "✓") : "Pending" },
+                          { label: "Capstone", value: education.capstoneCompleted ? (education.capstoneFulfilledBy || "✓") : "---" },
                           { label: "EDUC 300-level", value: `${education.education300Count}/${education.education300Required}` },
                           { label: "Curriculum (max 3)", value: education.curriculumCount },
                           { label: "Electives (max 3)", value: education.electiveCount },
@@ -2408,10 +2408,10 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                           { label: "Core", value: `${chem.coreCourses.filter(step => step.completed).length}/${chem.coreCourses.length || 0}` },
                           { label: "Depth electives", value: `${chem.electiveCount}/${chem.electiveRequired}` },
                           { label: "Extra 300-level", value: `${chem.additional300Count}/${chem.additional300Required}` },
-                          { label: "Research", value: chem.researchCompleted ? "✓" : "Pending" },
-                          { label: "Physics", value: chem.physicsMet ? "✓ PHYS 106/108" : "Pending" },
-                          { label: "Physics intro", value: chem.physicsIntroMet ? "✓" : "Pending" },
-                          { label: "Calculus", value: chem.mathMet ? "✓" : "Pending" },
+                          { label: "Research", value: chem.researchCompleted ? "✓" : "---" },
+                          { label: "Physics", value: chem.physicsMet ? "✓ PHYS 106/108" : "---" },
+                          { label: "Physics intro", value: chem.physicsIntroMet ? "✓" : "---" },
+                          { label: "Calculus", value: chem.mathMet ? "✓" : "---" },
                         ];
                         return (
                           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -2433,7 +2433,7 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                         const cams = summary.camsProgress;
                         const cards = [
                           { label: "Core (201/202)", value: `${cams.foundation.filter(step => step.completed).length}/${cams.foundation.length || 0}` },
-                          { label: "Production", value: cams.productionCompleted ? "✓" : "Pending" },
+                          { label: "Production", value: cams.productionCompleted ? "✓" : "---" },
                           { label: "Core electives", value: `${cams.coreMatches}/${cams.coreRequired}` },
                           { label: "300-level CAMS", value: `${cams.level300Matches}/${cams.level300Required}` },
                           { label: "Additional CAMS", value: `${cams.additionalCamsMatches}/${cams.additionalCamsRequired}` },
@@ -2460,11 +2460,11 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                         const cards = [
                           { label: "Core", value: `${es.coreStatus.filter(step => step.completed).length}/${es.coreStatus.length}` },
                           { label: "Science courses", value: `${es.scienceCount}/2` },
-                          { label: "Lab science", value: es.scienceLabSatisfied ? "✓" : "Pending" },
+                          { label: "Lab science", value: es.scienceLabSatisfied ? "✓" : "---" },
                           { label: "Elective units", value: `${es.electiveUnits.toFixed(2)}/${es.electiveUnitTarget}` },
                           { label: "Full-unit electives", value: `${es.nonIndependentFullCount}/${es.minFullCourses}` },
                           { label: "300-level elective", value: `${es.level300Count}/${es.level300Required}` },
-                          { label: "Capstone", value: es.capstoneCompleted ? (es.capstoneCourse || "✓") : "Pending" },
+                          { label: "Capstone", value: es.capstoneCompleted ? (es.capstoneCourse || "✓") : "---" },
                           { label: "ES Humanities", value: `${humanitiesAssigned}/1` },
                         ];
                         return (
@@ -2514,7 +2514,7 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                         <div className="rounded border px-3 py-2 text-center">
                           <div className="text-[0.55rem] uppercase text-slate-500">Intro Course</div>
                           <div className="text-base font-semibold text-slate-900">
-                            {countAssignedRequirement(programCourses, program.id, "afr-intro") > 0 || summary.afrProgress.introCompleted ? "✓ AFR 105/210" : "Pending"}
+                            {countAssignedRequirement(programCourses, program.id, "afr-intro") > 0 || summary.afrProgress.introCompleted ? "✓ AFR 105/210" : "---"}
                           </div>
                         </div>
                         <div className="rounded border px-3 py-2 text-center">
@@ -2543,7 +2543,7 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                         <div className="rounded border px-3 py-2 text-center">
                           <div className="text-[0.55rem] uppercase text-slate-500">Intro AMST</div>
                           <div className="text-base font-semibold text-slate-900">
-                            {countAssignedRequirement(programCourses, program.id, "amst-intro") > 0 || summary.amstProgress.introCompleted ? "✓ 101/121" : "Pending"}
+                            {countAssignedRequirement(programCourses, program.id, "amst-intro") > 0 || summary.amstProgress.introCompleted ? "✓ 101/121" : "---"}
                           </div>
                         </div>
                         <div className="rounded border px-3 py-2 text-center">
