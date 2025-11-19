@@ -71,7 +71,7 @@ export default function PlanProgramControls({
         <button
           type="button"
           onClick={() => onConfirmStartYear()}
-          className="rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:border-indigo-300 hover:bg-indigo-50"
+          className="rounded-lg border border-blue-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50"
         >
           Confirm
         </button>

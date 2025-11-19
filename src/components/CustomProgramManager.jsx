@@ -59,7 +59,7 @@ export function CustomMajorManager({
             className={cx(
               "rounded-full px-4 py-2 text-sm font-medium",
               canSaveCustomMajor
-                ? "bg-indigo-600 text-white hover:bg-indigo-500"
+                ? "bg-blue-600 text-white hover:bg-blue-500"
                 : "bg-slate-200 text-slate-500 cursor-not-allowed"
             )}
           >
@@ -111,7 +111,7 @@ export function CustomMajorManager({
                       <button
                         type="button"
                         onClick={() => onStartEditing(major)}
-                        className="text-slate-400 transition hover:text-indigo-500"
+                        className="text-slate-400 transition hover:text-blue-500"
                         aria-label={`Edit ${major.name}`}
                       >
                         Edit
@@ -242,7 +242,7 @@ export function CustomMinorManager({
               className={cx(
                 "rounded-full px-4 py-2 text-sm font-medium",
                 canSaveCustomMinor
-                  ? "bg-indigo-600 text-white hover:bg-indigo-500"
+                  ? "bg-blue-600 text-white hover:bg-blue-500"
                   : "bg-slate-200 text-slate-500 cursor-not-allowed"
               )}
             >
@@ -294,7 +294,7 @@ export function CustomMinorManager({
                         <button
                           type="button"
                           onClick={() => onStartEditing(minor)}
-                          className="text-slate-400 transition hover:text-indigo-500"
+                          className="text-slate-400 transition hover:text-blue-500"
                           aria-label={`Edit ${minor.name}`}
                         >
                           Edit
