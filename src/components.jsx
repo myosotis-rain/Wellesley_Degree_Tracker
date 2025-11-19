@@ -115,7 +115,7 @@ export const EditableYearLabel = ({ year, onUpdate }) => {
     <button
       type="button"
       onClick={() => setIsEditing(true)}
-      className="text-sm font-semibold text-slate-800 hover:text-indigo-600 underline decoration-dotted"
+      className="text-sm font-semibold text-slate-800 hover:text-blue-600 underline decoration-dotted"
     >
       {year.label}
     </button>
@@ -216,7 +216,7 @@ export const TermSummaryCard = ({ term, onOpen, onRemove, canRemove, onYearChang
                 e.stopPropagation();
                 setIsEditingYear(true);
               }}
-              className="text-[0.65rem] text-slate-500 hover:text-indigo-600 underline"
+              className="text-[0.65rem] text-slate-500 hover:text-blue-600 underline"
             >
               {term.calendarYear}
             </button>
@@ -228,7 +228,7 @@ export const TermSummaryCard = ({ term, onOpen, onRemove, canRemove, onYearChang
               {statusLabels[status]}
             </span>
           )}
-          <span className="text-[0.65rem] text-slate-400 group-hover:text-indigo-500">
+          <span className="text-[0.65rem] text-slate-400 group-hover:text-blue-500">
             Edit
           </span>
         </div>
@@ -438,7 +438,7 @@ export function TermDetailModal({
                       {slot.tags.map(t => (
                         <span
                           key={t}
-                          className="rounded-full bg-indigo-50 px-2 py-0.5 text-[0.6rem] text-indigo-700"
+                          className="rounded-full bg-indigo-50 px-2 py-0.5 text-[0.6rem] text-blue-700"
                         >
                           {t}
                         </span>
@@ -528,7 +528,7 @@ export function TermDetailModal({
                           className={cx(
                             "rounded-full border px-2 py-0.5 text-[0.65rem]",
                             active
-                              ? "border-indigo-600 bg-indigo-600 text-white"
+                              ? "border-blue-600 bg-blue-600 text-white"
                               : "border-slate-300 bg-white text-slate-700"
                           )}
                         >
@@ -652,7 +652,7 @@ export function TermDetailModal({
                   </div>
                   <textarea
                     name={`slot-${i}-notes`}
-                    className="h-20 w-full rounded-lg border px-2 py-1 text-[0.7rem]"
+                    className="h-14 w-full rounded-lg border px-2 py-1 text-[0.7rem]"
                     placeholder="Optional notes about why you're taking this, cross-reg info, etc."
                   />
                 </div>
@@ -668,7 +668,7 @@ export function TermDetailModal({
               addSlot(term.id);
               markSaved();
             }}
-            className="rounded-full bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
+            className="rounded-full bg-blue-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
           >
             + Add course
           </button>
