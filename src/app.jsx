@@ -1632,7 +1632,7 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                   {!summer && (
                     <button
                       onClick={() => addTerm(y.id, 'Summer')}
-                      className="rounded px-2 py-1 text-slate-600 bg-slate-100 hover:bg-slate-200"
+                      className="rounded px-2 py-1 text-slate-600 bg-amber-100 hover:bg-amber-200"
                     >
                       + Summer
                     </button>
@@ -1640,7 +1640,7 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                   {!winter && (
                     <button
                       onClick={() => addTerm(y.id, 'Winter')}
-                      className="rounded px-2 py-1 text-slate-600 bg-slate-100 hover:bg-slate-200"
+                      className="rounded px-2 py-1 text-slate-600 bg-violet-100 hover:bg-violet-200"
                     >
                       + Winter
                     </button>
