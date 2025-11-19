@@ -418,8 +418,8 @@ export function TermDetailModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-full border border-slate-300 px-3 py-1 font-semibold text-slate-700 hover:bg-sky-300 hover:border-sky-300
-              hover:shadow-sm"
+              className="rounded-full border border-slate-300 px-3 py-1 font-semibold text-slate-700 hover:bg-blue-500 hover:border-blue-500
+              hover:shadow-sm hover:text-slate-50"
             >
               Done
             </button>
