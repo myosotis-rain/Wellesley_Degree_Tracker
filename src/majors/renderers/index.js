@@ -22,6 +22,17 @@ import EalcMajorPlanner from "./EalcMajorPlanner.jsx";
 import EastAsianStudiesPlanner from "./EastAsianStudiesPlanner.jsx";
 import EducationStudiesPlanner from "./EducationStudiesPlanner.jsx";
 import EnvironmentalStudiesPlanner from "./EnvironmentalStudiesPlanner.jsx";
+import FrenchMajorPlanner from "./FrenchMajorPlanner.jsx";
+import FrenchCulturalStudiesPlanner from "./FrenchCulturalStudiesPlanner.jsx";
+import GeosciencesMajorPlanner from "./GeosciencesMajorPlanner.jsx";
+import GermanStudiesPlanner from "./GermanStudiesPlanner.jsx";
+import HistoryMajorPlanner from "./HistoryMajorPlanner.jsx";
+import ItalianStudiesPlanner from "./ItalianStudiesPlanner.jsx";
+import JewishStudiesPlanner from "./JewishStudiesPlanner.jsx";
+import LatinAmericanStudiesPlanner from "./LatinAmericanStudiesPlanner.jsx";
+import MedievalRenaissanceStudiesPlanner from "./MedievalRenaissanceStudiesPlanner.jsx";
+import MiddleEasternStudiesPlanner from "./MiddleEasternStudiesPlanner.jsx";
+import MusicMajorPlanner from "./MusicMajorPlanner.jsx";
 import GenericMajorPlanner from "./GenericMajorPlanner.jsx";
 
 export const majorRendererRegistry = {
@@ -50,6 +61,17 @@ export const majorRendererRegistry = {
   "East Asian Studies": EastAsianStudiesPlanner,
   "Education Studies": EducationStudiesPlanner,
   "Environmental Studies": EnvironmentalStudiesPlanner,
+  "French": FrenchMajorPlanner,
+  "French Cultural Studies": FrenchCulturalStudiesPlanner,
+  "Geosciences": GeosciencesMajorPlanner,
+  "German Studies": GermanStudiesPlanner,
+  "History": HistoryMajorPlanner,
+  "Italian Studies": ItalianStudiesPlanner,
+  "Jewish Studies": JewishStudiesPlanner,
+  "Latin American Studies": LatinAmericanStudiesPlanner,
+  "Medieval/Renaissance Studies": MedievalRenaissanceStudiesPlanner,
+  "Middle Eastern Studies": MiddleEasternStudiesPlanner,
+  "Music": MusicMajorPlanner,
 };
 
 export const getMajorRenderer = (majorName) => majorRendererRegistry[majorName] || GenericMajorPlanner;

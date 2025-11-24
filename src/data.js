@@ -78,10 +78,13 @@ export const subjectOptions = [
   "English",
   "Environmental Studies",
   "Extradepartmental",
-  "French",
+  "French", 
+  "French Cultural Studies",
   "Geosciences",
   "German",
+  "German Studies",
   "Greek",
+  "Hebrew",
   "Hindi/Urdu",
   "History",
   "Italian Studies",
@@ -148,13 +151,14 @@ export const courseCodeToDepartment = {
   ES: "Environmental Studies",
   EXTD: "Extradepartmental",
   FREN: "French",
+  FRST: "French Cultural Studies",
   GEOS: "Geosciences",
   GER: "German",
-  GRK: "Greek",
+  GRK: "Greek", 
   GRMN: "German",
+  HEBR: "Hebrew",
   HNUR: "Hindi/Urdu",
   HIST: "History",
-  ITAL: "Italian Studies",
   ITAS: "Italian Studies",
   JAPN: "Japanese Language and Culture",
   JPN: "Japanese Language and Culture",
@@ -892,9 +896,303 @@ export const majorRequirements = {
       electiveCoursesRequired: 3,
     },
   },
+  French: {
+    unitTarget: 9,
+    description:
+      "The French major requires a minimum of nine semester courses above FREN 201, including FREN 210, FREN 211 or FREN 212, and at least two 300-level courses taught in French (one in senior year). One course may be taught in English in the French Department.",
+    prerequisites:
+      "Complete FREN 101, FREN 102, and FREN 201 (these count toward degree but not major). Take the French placement test if you have prior French experience. Students are strongly encouraged to study abroad in France or a Francophone country.",
+    frenchStructure: {
+      totalRequired: 9,
+      above201Required: 9,
+      foundationOptions: ["FREN 210", "FREN 211", "FREN 212"],
+      foundationRequired: 1,
+      level300Required: 2,
+      level300InFrenchRequired: 2,
+      seniorYear300Required: 1,
+      englishCourseMax: 1,
+      excludedCourses: ["FREN 350", "FREN 360", "FREN 370"],
+      creditNonCreditMax: 2,
+    },
+  },
+  "French Cultural Studies": {
+    unitTarget: 8,
+    description:
+      "Interdepartmental major combining French language and culture with courses from other departments. Requires four French units above FREN 201 including FREN 207 and one foundation course, plus two 300-level French courses.",
+    prerequisites:
+      "Work with two advisors (one from French, one from another department). Courses from Africana Studies, Art, History, Music, Political Science, and other departments may count toward the major.",
+    frenchCulturalStructure: {
+      totalRequired: 8,
+      frenchUnitsRequired: 4,
+      above201Required: 4,
+      requiredCourses: ["FREN 207"],
+      foundationOptions: ["FREN 210", "FREN 211", "FREN 212"],
+      foundationRequired: 1,
+      level300Required: 2,
+      otherDepartmentUnits: 4,
+      excludedCourses: ["FRST 350", "FRST 360", "FRST 370"],
+      creditNonCreditMax: 2,
+    },
+  },
+  "Italian Studies": {
+    unitTarget: 9,
+    description:
+      "Nine units above the 100 level including one foundation course and two 300-level courses in the department. One course may be taken outside the department on a related topic. Courses in translation count toward the major.",
+    prerequisites:
+      "Students are strongly urged to begin Italian in first year. ITAS 101, ITAS 102, ITAS 103 count toward degree but not major. Qualified students are encouraged to study abroad in Italy.",
+    italianStructure: {
+      totalRequired: 9,
+      above100Required: 9,
+      foundationOptions: ["ITAS 209", "ITAS 210", "ITAS 220", "ITAS 272"],
+      foundationRequired: 1,
+      level300Required: 2,
+      level300InDeptRequired: 2,
+      outsideDepartmentMax: 1,
+      excludedCourses: ["ITAS 350", "ITAS 360", "ITAS 370"],
+      creditNonCreditMax: 2,
+      translationCoursesAllowed: true,
+    },
+  },
+  Geosciences: {
+    unitTarget: 12,
+    description:
+      "Twelve courses total: three core requirements (100-200 level), five electives (three at 300-level, one must be Wellesley 300-level with lab), and four cognate STEM courses (two from same discipline). Maximum two approved courses from outside Wellesley.",
+    prerequisites:
+      "Complete one 100-level course (GEOS 101 or GEOS 102) and two 200-level courses (GEOS 200/200X and GEOS 203). Choose areas of focus like Earth Materials, Tectonics, Environmental Geosciences, or Surface Processes.",
+    geosciencesStructure: {
+      totalRequired: 12,
+      coreRequired: 3,
+      core100Options: ["GEOS 101", "GEOS 102"],
+      core200Required: ["GEOS 200", "GEOS 200X", "GEOS 203"],
+      electivesRequired: 5,
+      level300ElectivesRequired: 3,
+      level300WellesleyWithLabRequired: 1,
+      cognateSTEMRequired: 4,
+      cognateSameDisciplineRequired: 2,
+      outsideWellesleyMax: 2,
+      allowedCognateDisciplines: ["Mathematics", "Biological Sciences", "Chemistry", "Physics", "Astronomy", "Computer Science", "Environmental Studies"],
+      excludedCourses: ["GEOS 350", "GEOS 360", "GEOS 370"],
+    },
+  },
+  "German Studies": {
+    unitTarget: 9,
+    description:
+      "Individual structured major combining advanced German language with cultural studies. Nine courses including German courses above GER 102 and related English-taught courses, developed in consultation with advisor.",
+    prerequisites:
+      "Work closely with major advisor or Department Chair to develop individualized plan. Combine advanced fluency with emphasis on specific components of media, history, culture, and society.",
+    germanStructure: {
+      totalRequired: 9,
+      aboveGER102Required: 6,
+      englishTaughtAllowed: 3,
+      focusAreas: ["Media", "History", "Culture", "Society"],
+      individualized: true,
+    },
+  },
+  History: {
+    unitTarget: 9,
+    description:
+      "Nine units including two 300-level courses (one must be seminar). Must include one non-Western course, one Western course, and one premodern course. Seven units must be taken at Wellesley.",
+    prerequisites:
+      "Design program with breadth and depth. Consider focusing on geographical area, time period, historical approach, or specific theme. AP/IB credits do not count toward major.",
+    historyStructure: {
+      totalRequired: 9,
+      wellesleyRequired: 7,
+      level300Required: 2,
+      seminarRequired: 1,
+      nonWesternRequired: 1,
+      westernRequired: 1,
+      premodernRequired: 1,
+      outsideFieldMax: 1,
+      crossListedMax: 1,
+      nonWesternOptions: ["Africa", "China", "Japan", "Latin America", "Middle East", "South Asia"],
+      westernOptions: ["Europe", "United States", "Russia"],
+      excludedCourses: ["HIST 350", "HIST 360", "HIST 370"],
+    },
+  },
+  "Jewish Studies": {
+    unitTarget: 9,
+    description:
+      "Nine courses including JWST 102/REL 102, two 300-level courses, four concentration courses (one 300-level), and language proficiency equivalent to two semesters intermediate level. Up to three outside courses allowed.",
+    prerequisites:
+      "Take Introduction to Jewish Studies by end of junior year. Develop concentration in area like religion, European Jewish history, American Jewish studies, or Sephardic studies. Show language proficiency in Hebrew, Yiddish, Ladino, or relevant language.",
+    jewishStudiesStructure: {
+      totalRequired: 9,
+      requiredCourse: "JWST 102",
+      alternateRequired: "REL 102",
+      level300Required: 2,
+      concentrationRequired: 4,
+      concentration300Required: 1,
+      languageRequired: 2,
+      outsideWellesleyMax: 3,
+      languageOptions: ["Hebrew", "Yiddish", "Ladino", "Arabic", "French", "Spanish", "German"],
+      concentrationAreas: ["Religion", "European Jewish History", "American Jewish Studies", "Sephardic Studies", "Biblical Studies", "Hebrew Literature", "Israel Studies"],
+    },
+  },
+  "Latin American Studies": {
+    unitTarget: 9,
+    description:
+      "Nine-course, three-department plan centered on advanced Spanish or Portuguese, two regional surveys, and a balanced mix of humanities and social science electives focused on Latin America.",
+    prerequisites:
+      "Consult both a faculty advisor and the Director of Latin American Studies before declaring. Language work should reach SPAN 241+ or PORT 241+, and majors are strongly encouraged to spend a semester in Latin America. Honors is by thesis plus oral exam (normally GPA ≥3.5 in the major).",
+    lasStructure: {
+      outcomes: [
+        "Speak and comprehend Spanish or Portuguese at an advanced ACTFL level.",
+        "Demonstrate foundational knowledge of Latin American history, cultures, economies, and literatures.",
+        "Show disciplinary breadth in at least one social science and one humanities field.",
+        "Compare and critique methods across at least three disciplines in the social sciences and humanities.",
+        "Apply disciplinary methods to synthesize research and complete original work on Latin American topics.",
+        "Present findings in clear writing and oral presentations.",
+      ],
+      languageRequirement: "Two language units at SPAN 241+ or PORT 241+.",
+      surveyCourses: [
+        "ANTH 245", "LAST 245", "ECON 241", "LAST 241", "HIST 207", "LAST 207",
+        "HIST 211", "LAST 211", "LAST 101", "LAST 217", "POL2 207", "LAST 275", "SPAN 275",
+        "MIT 17.55J", "MIT 21H.171",
+      ],
+      electiveRules: {
+        totalElectives: 5,
+        humanities: 2,
+        humanities300: 1,
+        socialScience: 2,
+        socialScience300: 1,
+      },
+      humanitiesCourses: [
+        "AFR 242 / REL 214", "AFR 256 / PORT 256", "ARTH 233", "ARTH 234", "ARTH 236", "ARTH 378",
+        "CAMS 240 / WGST 240", "LAST 221H", "PORT 241", "SPAN 251", "SPAN 257", "SPAN 279",
+        "SPAN 303", "SPAN 309", "SPAN 329", "SPAN 335",
+      ],
+      socialScienceCourses: [
+        "AFR 299", "AFR 341", "AMST 225 / SOC 225", "AMST 290 / PEAC 290", "AMST 323",
+        "ANTH 231 / PEAC 231", "ANTH 245 / LAST 245", "ANTH 346", "ECON 241 / LAST 241",
+        "EDUC 321 / PEAC 312 / SOC 312", "HIST 206", "HIST 207 / LAST 207", "HIST 211 / LAST 211",
+        "HIST 218", "HIST 357", "HIST 358", "HIST 376", "HIST 377", "LAST 217 / POL2 207",
+        "POL4 345",
+      ],
+      paperFlagHumanities: ["AFR 242"],
+      paperFlagSocial: ["AFR 341", "AMST 225", "SOC 225", "ANTH 231", "PEAC 231", "ANTH 346", "EDUC 321", "PEAC 312", "SOC 312", "HIST 244", "POL4 345"],
+      honorsNote:
+        "Honors requires a thesis on Latin America plus an oral exam. Candidates normally need ≥3.5 GPA in the major; petitions for 3.0–3.5 considered.",
+      studyAbroadNote:
+        "Study in Latin America is strongly encouraged (e.g., Wellesley-in-Chile). Director approval required for transfer credit; courses abroad rarely transfer at the 300 level.",
+    },
+  },
+  "Medieval/Renaissance Studies": {
+    unitTarget: 9,
+    description:
+      "Interdisciplinary nine-course major spanning history, art history, religion, literature, philosophy, music, and book studies. At least four courses must be above the 100 level in a concentration, with two 300-level courses typically taken at Wellesley.",
+    prerequisites:
+      "Select an advisor in your area of concentration and map the advanced work early. Credit/noncredit courses and AP credits do not count. Normally no more than two courses from outside Wellesley count toward the major (up to three from accredited programs abroad).",
+    merStructure: {
+      goals: [
+        "Integrate coursework across humanities disciplines for a unified view of the Middle Ages and Renaissance.",
+        "Show familiarity with foundational works and events of the era.",
+        "Analyze primary/secondary sources and build sophisticated arguments.",
+        "Conduct original research and articulate cultural unity/diversity across Europe and the Mediterranean.",
+        "Reach depth in at least one disciplinary or thematic specialization.",
+      ],
+      concentrationAbove100: 4,
+      level300Required: 2,
+      coursePool: [
+        "ARTH 110Y", "ARTH 222", "ARTH 227", "ARTH 229", "ARTH 244", "ARTH 246", "ARTH 247", "ARTH 251",
+        "ARTH 299", "ARTH 325", "ARTH 328", "ARTH 331", "ARTH 347", "ARTH 348", "CPLT 247 / ENG 247 / MER 247",
+        "CHIN 211", "CHIN 220", "ENG 112", "ENG 210", "ENG 212 / MER 212", "ENG 213", "ENG 221 / HIST 221",
+        "ENG 222", "ENG 223", "ENG 224", "ENG 227", "ENG 315", "ENG 317", "ENG 324", "ENG 325",
+        "FREN 210", "FREN 217", "FREN 224", "FREN 303", "FREN 333", "HIST 208", "HIST 211 / LAST 211",
+        "HIST 213", "HIST 214", "HIST 222", "HIST 232", "HIST 234", "HIST 246", "HIST 279", "HIST 352",
+        "HIST 354", "HIST 358", "HIST 379", "ITAS 263", "MES 261 / REL 261", "MES 271 / REL 271",
+        "MES 359 / REL 359", "MES 363 / REL 363", "MES 365 / REL 365", "MES 367 / REL 367", "MES 371 / REL 371",
+        "MUS 200", "PHIL 200", "PHIL 221", "PHIL 325", "REL 262", "REL 270", "SPAN 241", "SPAN 252", "SPAN 278",
+        "SPAN 302", "SPAN 307", "SPAN 308", "SPAN 311", "SPAN 318", "SPAN 325", "WRIT 147", "WRIT 149",
+        "WRIT 167", "WRIT 172",
+      ],
+      honorsNote:
+        "Honors is by thesis plus oral exam; admission normally requires ≥3.5 GPA in the major (petitions considered for 3.0–3.5).",
+      studyAbroadNote:
+        "Substitute up to two courses from outside Wellesley toward the major (up to three from accredited programs abroad); required 300-level work should be taken at Wellesley.",
+    },
+  },
+  "Middle Eastern Studies": {
+    unitTarget: 9,
+    description:
+      "Nine-unit major built around Arabic (or approved language), four upper-level courses in a focused area, and at least two 300-level courses (normally including a seminar).",
+    prerequisites:
+      "Demonstrate Arabic proficiency at the second-year level (or approved substitute language with director’s written approval). No credit is given for first-year language study. Up to two courses taken away from Wellesley may count (third by petition).",
+    mesStructure: {
+      goals: [
+        "Demonstrate knowledge of Middle Eastern and North African histories, cultures, and religious traditions.",
+        "Apply linguistic skills and disciplinary methods for advanced study.",
+        "Develop an in-depth field (e.g., Arabic literature, art/architecture, religion, modern Middle East, gender).",
+        "Formulate arguments, test hypotheses, and write with clarity across departments contributing to MES.",
+      ],
+      languagePrefixes: ["ARAB"],
+      altLanguages: ["Persian", "Turkish", "Hebrew"],
+      concentrationCoursesRequired: 4,
+      level300Required: 2,
+      seminarRequired: 1,
+      coursePool: [
+        "ARAB 310 / MES 310", "ARTH 203", "ARTH 247", "ARTH 348", "CPLT 275", "CPLT 364 / HIST 364 / MES 364",
+        "CPLT 375", "HIST 266 / SAS 266", "HIST 268", "HIST 284", "HIST 293 / MES 293", "HIST 365 / MES 368",
+        "HIST 366 / MES 366", "HIST 367 / SAS 367", "HIST 369 / MES 369", "JWST 104 / REL 104", "MES 261 / REL 261",
+        "MES 262 / REL 262", "MES 263 / REL 263", "MES 267 / REL 267", "MES 270H", "MES 271 / REL 271",
+        "MES 280 / REL 270", "MES 312", "MES 347 / REL 347", "MES 358 / PEAC 358 / POL2 359", "MES 359 / REL 359",
+        "MES 361 / REL 361", "MES 363 / REL 363", "MES 365 / REL 365", "MES 367 / REL 367", "MES 371 / REL 371",
+        "PEAC 217 / POL2 217", "PEAC 330 / REL 330", "REL 105", "REL 242", "REL 243", "REL 244", "REL 342",
+        "REL 345", "SPAN 252",
+      ],
+      honorsNote:
+        "Honors is by thesis plus oral exam; admission normally requires ≥3.5 GPA in the major (petitions considered for 3.0–3.5).",
+      awayCoursePolicy:
+        "Two approved courses away from Wellesley may count toward the major; a third requires petition with advisor support.",
+    },
+  },
+  Music: {
+    unitTarget: 10,
+    description:
+      "Ten-unit program integrating theory, history/culture/composition, performance, ensembles, and a culminating project. Includes two years of ensemble participation and a capstone seminar.",
+    prerequisites:
+      "Complete the Music Theory Placement Evaluation to determine if MUS 100 and MUS 122 are needed. Ensemble participation begins early; AP/IB credit does not count toward the major.",
+    musicStructure: {
+      outcomes: [
+        "Develop musical literacy, aural skills, and contextual understanding across traditions.",
+        "Write and speak about music with a scholarly voice; compose or create sound work.",
+        "Identify, analyze, and interpret diverse musical styles and traditions.",
+        "Build collaborative skills through ensembles and performance.",
+        "Use music for advocacy and community engagement.",
+      ],
+      newRequirements: {
+        theoryRequired: 3,
+        theoryCourses: ["MUS 100", "MUS 122", "MUS 220", "MUS 252", "MUS 315"],
+        historyCultureRequired: 4,
+        historyCultureCourses: ["MUS 200", "MUS 201", "MUS 202", "MUS 210", "MUS 245", "MUS 276", "MUS 277", "MUS 275", "MUS 209", "MUS 309", "MUS 398"],
+        electiveRequired: 1,
+        electiveExamples: ["MUS 100", "MUS 122", "ITAS 223 / MUS 223", "MUS 250", "MUS 350", "MUS 275", "AMST 217", "year-long lessons (MUS 149/199/249/299/344)"],
+        capstoneRequired: 1,
+        capstoneCourses: ["MUS 300", "MUS 301"],
+        ensembleRequired: 1,
+        ensembleCourses: ["MUS 260", "MUS 270"],
+        culminatingOptions: ["Honors thesis (Program I)", "Composition/sound art project (Program II)", "Performance project (Program III)"],
+      },
+      legacyTracks: [
+        {
+          title: "Western Classical Music",
+          summary: "MUS 122, MUS 252, MUS 200/201/202, MUS 315, MUS 300/301, three electives (one may be MUS 100 or a full year of lessons).",
+        },
+        {
+          title: "Jazz and World Music",
+          summary: "MUS 209/309, MUS 220, MUS 245/345, two of MUS 200/201/202/210, MUS 276, MUS 398, two electives (e.g., MUS 100, MUS 122, ITAS 223/MUS 223, MUS 250/350/275, AMST 217), MUS 300/301.",
+        },
+        {
+          title: "Digital Media / Experimental Music",
+          summary: "MUS 122, MUS 202, MUS 275, MUS 277, CS 111, one CAMS and one MAS course, two electives (one may be MUS 100), MUS 300/301.",
+        },
+      ],
+      ensembleNote:
+        "Two academic years of ensemble participation (MUS 260 or MUS 270) are required for all concentrations.",
+    },
+  },
   "Custom Major": {
     description:
-      "Design an interdepartmental plan that is not covered by Wellesley’s existing majors. An individual major should build cumulative expertise around a clearly described theme, blend theoretical and methodological work, and include at least eight units above the introductory level (minimum four in a single department).",
+      "Design an interdepartmental plan that is not covered by Wellesley's existing majors. An individual major should build cumulative expertise around a clearly described theme, blend theoretical and methodological work, and include at least eight units above the introductory level (minimum four in a single department).",
     prerequisites:
       "Draft the plan with two faculty advisors from different departments and submit it to the Committee on Curriculum and Academic Policy (CCAP) for approval—ideally by sophomore spring. Use the Major Declaration form on MyWellesley once the plan is approved, and route later changes through your advisors and CCAP.",
   },

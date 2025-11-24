@@ -116,29 +116,77 @@ export const computeCSProgress = (courses, csStructure) => {
 };
 
 export const computeBioProgress = (courses, bioStructure) => {
+  if (!bioStructure || typeof bioStructure !== "object") {
+    return {
+      introCompleted: 0,
+      groupCell: false,
+      groupSystems: false,
+      groupCommunity: false,
+      midLevelCount: 0,
+      labCount: 0,
+      capstoneCount: 0,
+      additional200: 0,
+      additional200Required: 0,
+      level300: 0,
+      level300Required: 0,
+      electiveCompleted: 0,
+      electiveRequired: 0,
+      chemIntroCompleted: false,
+      chemAdvancedCompleted: false,
+    };
+  }
   const normalizeCode = (course) => normalizeCourseCode(course.code);
   const isBISC = (course) => normalizeCode(course).startsWith("BISC");
 
+  const cellGroup = Array.isArray(bioStructure.cellGroup) ? bioStructure.cellGroup : [];
+  const systemsGroup = Array.isArray(bioStructure.systemsGroup) ? bioStructure.systemsGroup : [];
+  const communityGroup = Array.isArray(bioStructure.communityGroup) ? bioStructure.communityGroup : [];
+  const introCellOptions = Array.isArray(bioStructure.introCell) ? bioStructure.introCell : [];
+  const introOrganismalOptions = Array.isArray(bioStructure.introOrganismal) ? bioStructure.introOrganismal : [];
+  const midLevelCoursesCfg = Array.isArray(bioStructure.midLevelCourses) ? bioStructure.midLevelCourses : [];
+  const labCoursesCfg = Array.isArray(bioStructure.labCourses) ? bioStructure.labCourses : [];
+  const capstoneCoursesCfg = Array.isArray(bioStructure.capstoneCourses) ? bioStructure.capstoneCourses : [];
+  const additional200Options = Array.isArray(bioStructure.additional200Options) ? bioStructure.additional200Options : [];
+  const electiveAdditionalOptions = Array.isArray(bioStructure.electiveAdditionalOptions) ? bioStructure.electiveAdditionalOptions : [];
+  const chemIntroOptions = Array.isArray(bioStructure.chemIntroOptions) ? bioStructure.chemIntroOptions : [];
+  const chemAdvancedOptions = Array.isArray(bioStructure.chemAdvancedOptions) ? bioStructure.chemAdvancedOptions : [];
+  const chemAdvancedPrefix = bioStructure.chemAdvancedPrefix || "";
+
   const introCourses = courses.filter(isBISC).slice(0, 2);
   const cellCourse = courses.find(course =>
-    bioStructure.cellGroup.some(code => codesMatch(course.code, code))
+    cellGroup.some(code => codesMatch(course.code, code))
   );
   const systemsCourse = courses.find(course =>
-    bioStructure.systemsGroup.some(code => codesMatch(course.code, code))
+    systemsGroup.some(code => codesMatch(course.code, code))
   );
   const communityCourse = courses.find(course =>
-    bioStructure.communityGroup.some(code => codesMatch(course.code, code))
+    communityGroup.some(code => codesMatch(course.code, code))
   );
 
   const midCourses = courses.filter(course =>
-    bioStructure.midLevelCourses.some(code => codesMatch(course.code, code))
+    midLevelCoursesCfg.some(code => codesMatch(course.code, code))
   );
   const labCourses = courses.filter(course =>
-    bioStructure.labCourses.some(code => codesMatch(course.code, code))
+    labCoursesCfg.some(code => codesMatch(course.code, code))
   );
   const capstone = courses.filter(course =>
-    bioStructure.capstoneCourses.some(code => codesMatch(course.code, code))
+    capstoneCoursesCfg.some(code => codesMatch(course.code, code))
   );
+  const additional200 = courses.filter(course =>
+    additional200Options.some(code => codesMatch(course.code, code))
+  );
+  const electiveAddl = courses.filter(course =>
+    electiveAdditionalOptions.some(code => codesMatch(course.code, code))
+  );
+  const chemAdvancedFromPrefix = chemAdvancedPrefix
+    ? courses.some(course => {
+        const code = normalizeCode(course.code);
+        const match = code.match(/([A-Z]+)\s*(\d+)/);
+        if (!match) return false;
+        const [, prefix, num] = match;
+        return prefix === chemAdvancedPrefix.toUpperCase() && parseInt(num, 10) >= 200;
+      })
+    : false;
 
   return {
     introCompleted: introCourses.length,
@@ -148,6 +196,18 @@ export const computeBioProgress = (courses, bioStructure) => {
     midLevelCount: midCourses.length,
     labCount: labCourses.length,
     capstoneCount: capstone.length,
+    additional200: additional200.length,
+    additional200Required: bioStructure.additional200Required || 1,
+    level300: courses.filter(course => (course.level || 0) >= 300).length,
+    level300Required: bioStructure.level300Required || 2,
+    electiveCompleted: electiveAddl.length,
+    electiveRequired: bioStructure.electiveRequired || 1,
+    chemIntroCompleted: courses.some(course =>
+      chemIntroOptions.some(code => codesMatch(course.code, code))
+    ),
+    chemAdvancedCompleted: courses.some(course =>
+      chemAdvancedOptions.some(code => codesMatch(course.code, code))
+    ) || chemAdvancedFromPrefix,
   };
 };
 

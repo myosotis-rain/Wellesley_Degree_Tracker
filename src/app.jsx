@@ -5,7 +5,6 @@ import {
   internalRequirements,
   majorRequirements,
   seedRequirements,
-  subjectOptions,
 } from "./data.js";
 import {
   clamp01,
@@ -40,30 +39,17 @@ import {
   useProgramState,
 } from "./hooks/useProgramState.js";
 import {
-  computeMASProgress,
-  computeCSProgress,
-  computeBioProgress,
-  computeMathProgress,
-  computeEconProgress,
-  computeAnthroProgress,
-  computeEnglishProgress,
-  computeAfrProgress,
-  computeAmstProgress,
-  computeArchProgress,
-  computeStudioProgress,
-  computeArtHistoryProgress,
-  computeBiocProgress,
-  computeChphProgress,
-  computeChemProgress,
-  computeCamsProgress,
-  computeClassicsProgress,
-  computeCpltProgress,
-  computeDsProgress,
-  computeEalcProgress,
-  computeEasProgress,
-  computeEsProgress,
-  computeEducationProgress,
-} from "./majors/progress.js";
+  summarizeProgramProgress,
+  programRequirementOptionSets,
+  getRequirementOptionsForMajor,
+  getMajorRelevantCourses,
+  getMajorRequirementTarget,
+  getCoursesForProgram,
+  computeRequirementProgress,
+  countAssignedRequirement,
+  getAssignedRequirementId,
+  sanitizeReqKey,
+} from "./majors/helpers.js";
 import { getMajorRenderer } from "./majors/renderers/index.js";
 
 const TABS = [
@@ -106,7 +92,6 @@ const CUSTOM_MINOR_VALUE_PREFIX = "custom-minor:";
 const MIN_CUSTOM_MINOR_REQUIREMENTS = 6;
 const MAX_CUSTOM_MINOR_REQUIREMENTS = 12;
 const DEFAULT_CUSTOM_MINOR_COUNT = 6;
-const SUBJECT_NAME_SET = new Set(subjectOptions);
 const DISTRIBUTION_TAG_PRIORITY = ["LL", "ARTS", "SBA", "EC", "REP", "HST", "NPS", "MM"];
 const DISTRIBUTION_TAG_SET = new Set(DISTRIBUTION_TAG_PRIORITY);
 const CALENDAR_SEASON_ORDER = { Winter: 1, Spring: 2, Summer: 3, Fall: 4 };
@@ -244,329 +229,6 @@ const ensureCustomMinorList = (saved) => {
 const createCustomMinorOptionValue = (id) => `${CUSTOM_MINOR_VALUE_PREFIX}${id}`;
 const generateCustomMinorId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
-const programDepartment = (programName) => {
-  switch (programName) {
-    case "Computer Science":
-      return "Computer Science";
-    case "Mathematics":
-      return "Mathematics";
-    case "Economics":
-      return "Economics";
-    default:
-      return null;
-  }
-};
-
-const summarizeProgramProgress = (programName, courses, programMeta = {}) => {
-  const normalizedKey = resolveMajorConfigKey(programName);
-  if (!normalizedKey || normalizedKey === "Custom Major") return null;
-  const config = majorRequirements[normalizedKey];
-  if (!config) return null;
-  if (programName === "Media Arts and Sciences") {
-    return { config, isSpecial: true, masProgress: computeMASProgress(courses, config) };
-  }
-  if (programName === "Computer Science" && config.csStructure) {
-    return { config, isCS: true, csProgress: computeCSProgress(courses, config.csStructure) };
-  }
-  if (programName === "Biological Sciences" && config.bioStructure) {
-    return { config, isBio: true, bioProgress: computeBioProgress(courses, config.bioStructure) };
-  }
-  if (programName === "Anthropology" && config.anthroStructure) {
-    return {
-      config,
-      isAnthro: true,
-      anthroProgress: computeAnthroProgress(courses, config.anthroStructure, programMeta.experienceComplete),
-    };
-  }
-  if (config.englishStructure && (programName === "English" || programName === "English and Creative Writing")) {
-    return {
-      config,
-      isEnglish: true,
-      englishProgress: computeEnglishProgress(courses, config.englishStructure),
-    };
-  }
-  if (config.afrStructure) {
-    return {
-      config,
-      isAfr: true,
-      afrProgress: computeAfrProgress(courses, config.afrStructure),
-    };
-  }
-  if (config.amerStructure) {
-    return {
-      config,
-      isAmst: true,
-      amstProgress: computeAmstProgress(courses, config.amerStructure),
-    };
-  }
-  if (config.archStructure) {
-    return {
-      config,
-      isArchitecture: true,
-      archProgress: computeArchProgress(courses, config.archStructure),
-    };
-  }
-  if (config.studioStructure) {
-    return {
-      config,
-      isStudioArt: true,
-      studioProgress: computeStudioProgress(courses, config.studioStructure),
-    };
-  }
-  if (config.artHistoryStructure) {
-    return {
-      config,
-      isArtHistory: true,
-      artHistoryProgress: computeArtHistoryProgress(courses, config.artHistoryStructure),
-    };
-  }
-  if (config.biocStructure) {
-    return {
-      config,
-      isBiochemistry: true,
-      biocProgress: computeBiocProgress(courses, config.biocStructure),
-    };
-  }
-  if (config.chphStructure) {
-    return {
-      config,
-      isChemicalPhysics: true,
-      chphProgress: computeChphProgress(courses, config.chphStructure),
-    };
-  }
-  if (config.chemStructure) {
-    return {
-      config,
-      isChemistry: true,
-      chemistryProgress: computeChemProgress(courses, config.chemStructure),
-    };
-  }
-  if (config.camsStructure) {
-    return {
-      config,
-      isCams: true,
-      camsProgress: computeCamsProgress(courses, config.camsStructure),
-    };
-  }
-  if (config.classicsStructure) {
-    return {
-      config,
-      isClassics: true,
-      classicsProgress: computeClassicsProgress(courses, config.classicsStructure),
-    };
-  }
-  if (config.clscStructure) {
-    return {
-      config,
-      isClsc: true,
-      clscProgress: computeClscProgress(courses, config.clscStructure),
-    };
-  }
-  if (config.cpltStructure) {
-    return {
-      config,
-      isComparativeLit: true,
-      cpltProgress: computeCpltProgress(courses, config.cpltStructure),
-    };
-  }
-  if (config.dsStructure) {
-    return {
-      config,
-      isDataScience: true,
-      dsProgress: computeDsProgress(courses, config.dsStructure),
-    };
-  }
-  if (config.easStructure) {
-    return {
-      config,
-      isEastAsianStudies: true,
-      easProgress: computeEasProgress(courses, config.easStructure),
-    };
-  }
-  if (config.ealcStructure) {
-    return {
-      config,
-      isEalc: true,
-      ealcProgress: computeEalcProgress(courses, config.ealcStructure),
-    };
-  }
-  if (config.esStructure) {
-    return {
-      config,
-      isEnvironmentalStudies: true,
-      esProgress: computeEsProgress(courses, config.esStructure),
-    };
-  }
-  if (config.educationStructure) {
-    return {
-      config,
-      isEducationStudies: true,
-      educationProgress: computeEducationProgress(courses, config.educationStructure),
-    };
-  }
-
-  const requiredCourses = config.requiredCourses || [];
-  const requiredCompleted = requiredCourses.filter(req =>
-    courses.some(course => codesMatch(course.code, req))
-  );
-
-  const dept = programDepartment(programName);
-  const electiveTotal = config.electiveCourses || 0;
-  let electiveCompleted = 0;
-  if (dept && electiveTotal > 0) {
-    electiveCompleted = Math.min(
-      electiveTotal,
-      courses.filter(course => {
-        const detected = detectDepartmentFromCode(course.code);
-        return (
-          detected === dept &&
-          !requiredCourses.includes(course.code) &&
-          (course.level || 0) >= 200
-        );
-      }).length
-    );
-  }
-
-  const mathRequirements = config.mathRequirements || [];
-  const mathCompleted = mathRequirements.filter(req =>
-    courses.some(course => codesMatch(course.code, req))
-  );
-
-  return {
-    config,
-    isSpecial: false,
-    requiredCompleted: requiredCompleted.length,
-    requiredTotal: requiredCourses.length,
-    electiveCompleted,
-    electiveTotal,
-    mathCompleted: mathCompleted.length,
-    mathTotal: mathRequirements.length,
-  };
-};
-
-const sanitizeReqKey = (key = "") => key.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-
-const programRequirementOptionSets = {
-  "Media Arts and Sciences": [
-    { id: "mas-intro", label: "Intro Courses", required: 3 },
-    { id: "mas-studio", label: "Studio Core", required: 3 },
-    { id: "mas-cs", label: "CS Core", required: 3 },
-    { id: "mas-electives", label: "MAS Electives", required: 3 },
-    { id: "mas-capstone", label: "Capstone Course", required: 1 },
-    { id: "mas-portfolio", label: "Portfolio / Deliverable", required: 1 },
-  ],
-  "Computer Science": [
-    { id: "cs-intro", label: "Intro (CS 111/112)", required: 1 },
-    { id: "cs-core-230", label: "CS 230 Series", required: 1 },
-    { id: "cs-core-231", label: "CS 231", required: 1 },
-    { id: "cs-core-235", label: "CS 235", required: 1 },
-    { id: "cs-core-240", label: "CS 240", required: 1 },
-    { id: "cs-300", label: "300-level CS", required: 2 },
-    { id: "cs-elective", label: "CS Elective (200+)", required: 2 },
-    { id: "cs-math", label: "Supporting Math (MATH 225)", required: 1 },
-  ],
-  "Biological Sciences": [
-    { id: "bio-intro-cell", label: "Intro: Cell & Molecular", required: 1 },
-    { id: "bio-intro-organismal", label: "Intro: Organismal", required: 1 },
-    { id: "bio-group-cell", label: "200-level: Cell Biology", required: 1 },
-    { id: "bio-group-systems", label: "200-level: Systems Biology", required: 1 },
-    { id: "bio-group-community", label: "200-level: Community Biology", required: 1 },
-    { id: "bio-extra-200", label: "Additional 200-level BISC", required: 1 },
-    { id: "bio-300", label: "300-level BISC", required: 2 },
-    { id: "bio-elective", label: "BISC Elective / EXTD 225", required: 1 },
-    { id: "bio-chem-intro", label: "Intro Chemistry", required: 1 },
-    { id: "bio-chem-advanced", label: "Advanced Chemistry", required: 1 },
-  ],
-  Anthropology: [
-    { id: "anth-101", label: "ANTH 101", required: 1 },
-    { id: "anth-2nd-intro", label: "Second Intro (ANTH 102/103)", required: 1 },
-    { id: "anth-205", label: "ANTH 205", required: 1 },
-    { id: "anth-301", label: "ANTH 301", required: 1 },
-    { id: "anth-extra-300", label: "Additional 300-level", required: 1 },
-    { id: "anth-elective", label: "Anthropology Elective", required: 4 },
-    { id: "anth-experience", label: "Field / Experience", required: 1 },
-  ],
-  English: [
-    { id: "english-postcolonial", label: "Postcolonial / Ethnic Writing", required: 1 },
-    { id: "english-pre1900", label: "Pre-1900 Literature", required: 3 },
-    { id: "english-pre1800", label: "Pre-1800 Literature", required: 2 },
-  ],
-  "English and Creative Writing": [
-    { id: "english-postcolonial", label: "Postcolonial / Ethnic Writing", required: 1 },
-    { id: "english-pre1900", label: "Pre-1900 Literature", required: 3 },
-    { id: "english-pre1800", label: "Pre-1800 Literature", required: 2 },
-    { id: "english-creative-writing", label: "Creative Writing Course", required: 4 },
-  ],
-  "Africana Studies": [
-    { id: "afr-intro", label: "AFR 105 / AFR 210", required: 1 },
-    { id: "afr-300", label: "300-level AFR courses", required: 2 },
-    { id: "afr-colloquium", label: "Africana Colloquium attendance", required: 1 },
-  ],
-  "American Studies": [
-    { id: "amst-intro", label: "AMST 101 / 121", required: 1 },
-    { id: "amst-core", label: "Core AMST courses", required: 5 },
-    { id: "amst-300", label: "300-level AMST", required: 2 },
-  ],
-  Mathematics: [
-    { id: "math-115", label: "MATH 115", required: 1 },
-    { id: "math-116", label: "MATH 116 or 120", required: 1 },
-    { id: "math-205", label: "MATH 205", required: 1 },
-    { id: "math-206", label: "MATH 206", required: 1 },
-    { id: "math-302", label: "MATH 302", required: 1 },
-    { id: "math-305", label: "MATH 305", required: 1 },
-    { id: "math-extra-300", label: "Additional 300-level MATH", required: 2 },
-    { id: "math-adv-elective", label: "Additional 200+ MATH/STAT units", required: 2 },
-  ],
-  Economics: [
-    { id: "econ-101", label: "ECON 101 / 101P", required: 1 },
-    { id: "econ-102", label: "ECON 102 / 102P", required: 1 },
-    { id: "econ-201", label: "ECON 201", required: 1 },
-    { id: "econ-202", label: "ECON 202", required: 1 },
-    { id: "econ-103", label: "ECON 103 / approved stats", required: 1 },
-    { id: "econ-203", label: "ECON 203", required: 1 },
-    { id: "econ-300", label: "300-level ECON", required: 2 },
-    { id: "econ-elective", label: "Economics / QR260 / STAT260 / QR309 / STAT309", required: 1 },
-  ],
-  "Comparative Literary Studies": [
-    { id: "cplt-pre1900", label: "Pre-1900 Course", required: 1 },
-    { id: "cplt-concentration", label: "Concentration Courses", required: 3 },
-    { id: "cplt-concentration-300", label: "Concentration 300-level", required: 1 },
-  ],
-  "Education Studies": [
-    { id: "educ-core", label: "Core (EDUC 120/214/215/216)", required: 1 },
-    { id: "educ-research", label: "Education Research & Theory", required: 4 },
-    { id: "educ-capstone", label: "Capstone / Thesis", required: 1 },
-    { id: "educ-300", label: "300-level EDUC Courses", required: 2 },
-  ],
-  "Environmental Studies": [
-    { id: "es-core", label: "Core: ES 102 & ES 214", required: 2 },
-    { id: "es-science", label: "Science / NPS courses", required: 2 },
-    { id: "es-humanities", label: "ES Humanities (HST/LL/REP/ARTS)", required: 1 },
-    { id: "es-electives", label: "ES Electives", required: 4 },
-    { id: "es-300", label: "300-level ES elective", required: 1 },
-    { id: "es-capstone", label: "Capstone (ES 300/399)", required: 1 },
-  ],
-  "Custom Major": [],
-};
-
-const getRequirementOptionsForMajor = (majorName) => {
-  const normalizedKey = resolveMajorConfigKey(majorName);
-  if (!normalizedKey) return [];
-  if (programRequirementOptionSets[normalizedKey]) return programRequirementOptionSets[normalizedKey];
-  const config = majorRequirements[normalizedKey];
-  if (!config) return [];
-  const options = [];
-  (config.requiredCourses || []).forEach(course => {
-    options.push({ id: `required-${sanitizeReqKey(course)}`, label: `Required: ${course}`, required: 1 });
-  });
-  if (config.electiveCourses) {
-    options.push({ id: "generic-elective", label: "Major Elective", required: config.electiveCourses });
-  }
-  (config.mathRequirements || []).forEach(course => {
-    options.push({ id: `support-${sanitizeReqKey(course)}`, label: `Supporting: ${course}`, required: 1 });
-  });
-  return options;
-};
 
 // ---- Main App ----
 export default function App() {
@@ -1212,13 +874,15 @@ export default function App() {
     return [...baseMinorOptions, ...customMinorOptions];
   }, [baseMinorOptions, customMinorOptions]);
 
+  const resolveMajorConfigKeyFn = useCallback(resolveMajorConfigKey, []);
+
   const programRequirementOptionsMap = useMemo(() => {
     const entries = programSelections.map(program => [
       program.id,
-      program.value ? getRequirementOptionsForMajor(program.value) : [],
+      program.value ? getRequirementOptionsForMajor(program.value, resolveMajorConfigKeyFn) : [],
     ]);
     return Object.fromEntries(entries);
-  }, [programSelections]);
+  }, [programSelections, resolveMajorConfigKeyFn]);
 
   const allCourses = useMemo(() => {
     const collected = [];
@@ -1265,97 +929,6 @@ export default function App() {
     );
   };
 
-const getAssignedRequirementId = (course, programId) =>
-  programId ? course.programs?.[programId]?.requirement || "" : "";
-
-const countAssignedRequirement = (courses, programId, requirementId) => {
-  if (!programId || !requirementId) return 0;
-  return courses.filter(course => getAssignedRequirementId(course, programId) === requirementId).length;
-};
-
-const computeRequirementProgress = (programId, requirementOptions, programCourses) => {
-  if (!requirementOptions.length) return { pct: 0, subtitle: "Awaiting assignments" };
-  const total = requirementOptions.length;
-  let sum = 0;
-  requirementOptions.forEach(opt => {
-    const required = opt.required || 1;
-    const assigned = countAssignedRequirement(programCourses, programId, opt.id);
-    sum += Math.min(assigned / required, 1);
-  });
-  const pct = clamp01(sum / total);
-  return { pct, subtitle: `${Math.round(pct * 100)}% complete` };
-};
-
-const getCoursesForProgram = (programId) => {
-  const flagged = allCourses.filter(course => course.programs?.[programId]);
-  if (flagged.length > 0) return flagged;
-  return allCourses;
-};
-
-const getMajorRelevantCourses = (majorValue, allCourses, programSelections) => {
-  if (!majorValue) return [];
-  const normalizedKey = resolveMajorConfigKey(majorValue);
-  const majorReq = normalizedKey ? majorRequirements[normalizedKey] : null;
-  if (!majorReq) return [];
-  const matchedPrograms = programSelections.filter(program => program.value === majorValue);
-  const isCourseFlagged = (course) =>
-    matchedPrograms.some(program => course.programs?.[program.id]);
-  const flagged = matchedPrograms.length ? allCourses.filter(isCourseFlagged) : [];
-  const combined = [...flagged];
-  const addCourse = (course) => {
-    if (!course) return;
-    if (!combined.includes(course)) combined.push(course);
-  };
-  (majorReq.requiredCourses || []).forEach(reqCode => {
-    const match = allCourses.find(course => codesMatch(course.code, reqCode));
-    if (match) addCourse(match);
-  });
-
-  if (majorReq.csStructure) {
-    const addMatches = (options = []) => {
-      if (!options.length) return;
-      allCourses.forEach(course => {
-        if (options.some(opt => codesMatch(course.code, opt))) addCourse(course);
-      });
-    };
-    addMatches(majorReq.csStructure.introOptions);
-    (majorReq.csStructure.coreGroups || []).forEach(group => addMatches(group.options));
-  }
-
-  if (combined.length === 0) {
-    const fallbackDept = (() => {
-    if (SUBJECT_NAME_SET.has(majorValue)) return majorValue;
-      const departmentHint = programDepartment(majorValue);
-      if (departmentHint) return departmentHint;
-      return null;
-    })();
-    if (fallbackDept) {
-      return allCourses.filter(course => detectDepartmentFromCode(course.code) === fallbackDept);
-    }
-    return [];
-  }
-  return combined;
-};
-
-const getMajorRequirementTarget = (majorName) => {
-  const normalizedKey = resolveMajorConfigKey(majorName);
-  const config = normalizedKey ? majorRequirements[normalizedKey] : null;
-  if (!config) return 0;
-  if (config.unitTarget) return config.unitTarget;
-  if (config.englishStructure?.totalRequired) return config.englishStructure.totalRequired;
-  if (config.mathStructure?.advancedTotalRequired) return config.mathStructure.advancedTotalRequired;
-  if (config.econStructure?.totalCoursesRequired) return config.econStructure.totalCoursesRequired;
-  if (config.bioStructure) return 9;
-  if (config.anthroStructure) return 9;
-  if (config.csStructure) {
-    const coreCount = (config.csStructure.coreGroups?.length || 0) + (config.csStructure.introOptions ? 1 : 0);
-    return coreCount + (config.csStructure.level300Required || 0) + (config.csStructure.electivesRequired || 0);
-  }
-  const required = config.requiredCourses?.length || 0;
-  const electives = config.electiveCourses || 0;
-  return required + electives;
-};
-
 const ProgramStatRow = ({
   label,
   value,
@@ -1374,9 +947,9 @@ const formatUnitDisplay = (value) => {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 };
 
-const getTotalUnitsStat = (majorName, courses = []) => {
+const getTotalUnitsStat = (majorName, courses = [], resolveMajorConfigKeyFn = resolveMajorConfigKey) => {
   if (!majorName) return null;
-  const target = getMajorRequirementTarget(majorName);
+  const target = getMajorRequirementTarget(majorName, resolveMajorConfigKeyFn);
   if (!target) return null;
   const total = courses.reduce((sum, course) => {
     const credits = Number(course.credits);
@@ -1471,12 +1044,31 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
 
     // Group 1: LL + ARTS (need at least 1 from each, 3 total)
     counts.GROUP1_TOTAL = c("LL") + c("ARTS");
+    const group1Have = (() => {
+      const ll = c("LL");
+      const arts = c("ARTS");
+      const base = Math.min(ll, 1) + Math.min(arts, 1);
+      const extra = Math.max(0, ll + arts - 2);
+      return base + Math.min(extra, 1);
+    })();
 
     // Group 2: SBA (required) + 2 from EC/REP/HST (3 total)  
     counts.GROUP2_TOTAL = c("SBA") + c("EC") + c("REP") + c("HST");
+    const group2Have = (() => {
+      const hasSBA = c("SBA") >= 1;
+      const ehr = c("EC") + c("REP") + c("HST");
+      return (hasSBA ? 1 : 0) + Math.min(ehr, 2);
+    })();
 
     // Group 3: NPS + MM + additional from either (3 total, at least 1 lab)
     counts.GROUP3_TOTAL = c("NPS") + c("MM");
+    const group3Have = (() => {
+      const nps = c("NPS");
+      const mm = c("MM");
+      const base = Math.min(nps, 1) + Math.min(mm, 1); // one science + one math max
+      const extraPool = Math.max(0, nps + mm - 2);
+      return Math.min(base + Math.min(extraPool, 1), 3);
+    })();
 
     const detail = seedRequirements.map((r) => {
       let have = counts[r.id] || 0;
@@ -1495,24 +1087,22 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
         // Must have at least 1 LL AND 1 ARTS, plus total of 3
         const hasLL = c("LL") >= 1;
         const hasARTS = c("ARTS") >= 1;
-        const hasTotal = counts.GROUP1_TOTAL >= 3;
-        pct = (hasLL && hasARTS && hasTotal) ? 1 : clamp01(counts.GROUP1_TOTAL / 3);
+        have = group1Have;
+        pct = (hasLL && hasARTS && group1Have >= 3) ? 1 : clamp01(group1Have / 3);
       } else if (r.id === "GROUP2_TOTAL") {
         // Must have SBA + at least 2 from EC/REP/HST
         const hasSBA = c("SBA") >= 1;
-        const ehrCount = Math.min(c("EC") + c("REP") + c("HST"), 2);
-        const total = (hasSBA ? 1 : 0) + ehrCount;
-        have = total;
-        pct = clamp01(total / 3);
+        have = group2Have;
+        pct = (hasSBA && group2Have >= 3) ? 1 : clamp01(group2Have / 3);
       } else if (r.id === "GROUP3_TOTAL") {
         // Must have NPS + MM + at least 1 more, with at least 1 lab
         const hasNPS = c("NPS") >= 1;
         const hasMM = c("MM") >= 1;
         const hasLab = c("LAB") >= 1;
-        const additionalNeeded = Math.max(0, 3 - c("NPS") - c("MM"));
-        const hasEnoughTotal = counts.GROUP3_TOTAL >= 3;
-        have = counts.GROUP3_TOTAL + (hasLab && !hasMM && !hasNPS ? 1 : 0); // Count lab separately if needed
-        pct = (hasNPS && hasMM && hasLab && hasEnoughTotal) ? 1 : clamp01(counts.GROUP3_TOTAL / 3);
+        const totalNpsMm = c("NPS") + c("MM");
+        have = group3Have;
+        const meetsMix = hasNPS && hasMM;
+        pct = (meetsMix && hasLab && totalNpsMm >= 3) ? 1 : clamp01(have / 3);
       }
 
       return { ...r, have, targetCount, pct, waived };
@@ -1521,9 +1111,9 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
     const overall = detail.reduce((sum, r) => sum + r.pct, 0) / detail.length;
 
     // Simplified group calculation for display
-    const g1 = clamp01(counts.GROUP1_TOTAL / 3);
-    const g2 = clamp01(counts.GROUP2_TOTAL / 3); 
-    const g3 = clamp01(counts.GROUP3_TOTAL / 3);
+    const g1 = clamp01(group1Have / 3);
+    const g2 = clamp01(group2Have / 3); 
+    const g3 = clamp01(group3Have / 3);
 
     return {
       detail,
@@ -1563,7 +1153,8 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
   };
 
   const renderPlan = () => {
-    const secondaryMode = showSecondaryMajor ? "Major" : showMinorPlanner ? "Minor" : "None";
+    // Program 1 defaults to Major unless a minor planner is explicitly shown
+    const secondaryMode = showSecondaryMajor ? "Major" : showMinorPlanner ? "Minor" : "Major";
     const gradedUnitsLabel = gpaSummary.totalCredits === 1
       ? "1 graded unit"
       : `${formatUnitDisplay(gpaSummary.totalCredits)} graded units`;
@@ -1813,15 +1404,15 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
           </div>
           <div className="space-y-3">
             {programSelections.map(program => {
-              const programCourses = program.value ? getCoursesForProgram(program.id) : [];
-              const displayCourses = program.value ? getMajorRelevantCourses(program.value, allCourses, programSelections) : [];
-              const summary = program.value ? summarizeProgramProgress(program.value, displayCourses, program) : null;
-              const totalUnitsStat = program.value ? getTotalUnitsStat(program.value, displayCourses) : null;
+              const programCourses = program.value ? getCoursesForProgram(program.id, allCourses) : [];
+              const displayCourses = program.value ? getMajorRelevantCourses(program.value, allCourses, programSelections, resolveMajorConfigKeyFn) : [];
+              const summary = program.value ? summarizeProgramProgress(program.value, displayCourses, program, resolveMajorConfigKeyFn) : null;
+              const totalUnitsStat = program.value ? getTotalUnitsStat(program.value, displayCourses, resolveMajorConfigKeyFn) : null;
               const requirementOptions = programRequirementOptionsMap[program.id] || [];
               const requirementProgress = program.value && requirementOptions.length
                 ? computeRequirementProgress(program.id, requirementOptions, programCourses)
                 : { pct: 0, subtitle: program.value ? "Mark requirements" : "No program" };
-              const totalTarget = program.value ? getMajorRequirementTarget(program.value) : 0;
+              const totalTarget = program.value ? getMajorRequirementTarget(program.value, resolveMajorConfigKeyFn) : 0;
               const fallbackUnits = totalUnitsStat || (totalTarget ? { earned: 0, target: totalTarget } : null);
               const progressLabel = program.type === "Minor" ? "Minor progress" : "Major progress";
               const buildProgramRingData = (stat = totalUnitsStat || fallbackUnits) => {
@@ -1840,6 +1431,7 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                   </div>
                 );
               };
+              const hasCustomGrid = summary?.isLas || summary?.isMer || summary?.isMes || summary?.isMusic || summary?.isFrench || summary?.isFrenchCultural || summary?.isGeosciences || summary?.isGermanStudies || summary?.isHistory || summary?.isClsc;
               return (
                 <div key={program.id} className="rounded-xl border px-3 py-3">
                   <div className="flex flex-col gap-2 text-[0.65rem] sm:flex-row sm:items-center">
@@ -1883,9 +1475,10 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                     </div>
                   )}
 
+                  {program.type !== "None" && program.value && summary && renderProgramRing(totalUnitsStat || fallbackUnits)}
+
                   {program.type !== "None" && program.value && summary && summary.isSpecial && summary.masProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      {renderProgramRing(totalUnitsStat || fallbackUnits)}
                       {(() => {
                         const assignedIntro = countAssignedRequirement(programCourses, program.id, "mas-intro");
                         const assignedStudio = countAssignedRequirement(programCourses, program.id, "mas-studio");
@@ -1949,7 +1542,6 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
 
                   {program.type !== "None" && program.value && summary && summary.isCS && summary.csProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      {renderProgramRing()}
                       {(() => {
                         const totalCore = summary.csProgress.coreGroups.length;
                         const completedCore = summary.csProgress.coreGroups.filter(group => group.completed).length;
@@ -1993,7 +1585,6 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
 
                   {program.type !== "None" && program.value && summary && summary.isBio && summary.bioProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      {renderProgramRing()}
                       {(() => {
                         const introCellAssigned = countAssignedRequirement(programCourses, program.id, "bio-intro-cell");
                         const introOrgAssigned = countAssignedRequirement(programCourses, program.id, "bio-intro-organismal");
@@ -2047,7 +1638,6 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
 
                   {program.type !== "None" && program.value && summary && summary.isEnglish && summary.englishProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      {renderProgramRing()}
                       {(() => {
                         const struct = summary.config?.englishStructure || {};
                         const topTiles = [
@@ -2098,7 +1688,6 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                   )}
                   {program.type !== "None" && program.value && summary && summary.isComparativeLit && summary.cpltProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      {renderProgramRing()}
                       {(() => {
                         const pre1900Assigned = countAssignedRequirement(programCourses, program.id, "cplt-pre1900");
                         const concentrationAssigned = countAssignedRequirement(programCourses, program.id, "cplt-concentration");
@@ -2127,7 +1716,6 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                   )}
                   {program.type !== "None" && program.value && summary && summary.isArchitecture && summary.archProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      {renderProgramRing()}
                       {(() => {
                         const arch = summary.archProgress;
                         const cards = [
@@ -2155,7 +1743,6 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                   )}
                   {program.type !== "None" && program.value && summary && summary.isStudioArt && summary.studioProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      {renderProgramRing()}
                       {(() => {
                         const studio = summary.studioProgress;
                         const cards = [
@@ -2183,7 +1770,6 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                   )}
                   {program.type !== "None" && program.value && summary && summary.isArtHistory && summary.artHistoryProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      {renderProgramRing()}
                       {(() => {
                         const artHist = summary.artHistoryProgress;
                         const regionCards = [
@@ -2221,7 +1807,6 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                   )}
                   {program.type !== "None" && program.value && summary && summary.isBiochemistry && summary.biocProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      {renderProgramRing()}
                       {(() => {
                         const bioc = summary.biocProgress;
                         const cards = [
@@ -2248,7 +1833,6 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                   )}
                   {program.type !== "None" && program.value && summary && summary.isChemicalPhysics && summary.chphProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      {renderProgramRing()}
                       {(() => {
                         const chph = summary.chphProgress;
                         const cards = [
@@ -2274,7 +1858,6 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                   )}
                   {program.type !== "None" && program.value && summary && summary.isDataScience && summary.dsProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      {renderProgramRing()}
                       {(() => {
                         const ds = summary.dsProgress;
                         const foundationComplete = ds.foundation.filter(step => step.completed).length;
@@ -2299,7 +1882,6 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                   )}
                   {program.type !== "None" && program.value && summary && summary.isEalc && summary.ealcProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      {renderProgramRing()}
                       {(() => {
                         const ealc = summary.ealcProgress;
                         const cards = [
@@ -2335,7 +1917,6 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                   )}
                   {program.type !== "None" && program.value && summary && summary.isEastAsianStudies && summary.easProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      {renderProgramRing()}
                       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                         <div className="rounded border px-3 py-2 text-center">
                           <div className="text-[0.55rem] uppercase text-slate-500">Language units</div>
@@ -2372,7 +1953,6 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                   )}
                   {program.type !== "None" && program.value && summary && summary.isEducationStudies && summary.educationProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      {renderProgramRing()}
                       {(() => {
                         const education = summary.educationProgress;
                         const cards = [
@@ -2400,7 +1980,6 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                   )}
                   {program.type !== "None" && program.value && summary && summary.isChemistry && summary.chemistryProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      {renderProgramRing()}
                       {(() => {
                         const chem = summary.chemistryProgress;
                         const cards = [
@@ -2426,9 +2005,112 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                       })()}
                     </div>
                   )}
+                  {program.type !== "None" && program.value && summary && summary.isFrench && summary.frenchProgress && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        {[
+                          { label: "French courses", value: `${summary.frenchProgress.completed}/${summary.frenchProgress.total}` },
+                          { label: "Foundation", value: `${summary.frenchProgress.foundation}/${summary.frenchProgress.foundationTarget || 1}` },
+                          { label: "300-level", value: `${summary.frenchProgress.level300}/${summary.frenchProgress.level300Target}` },
+                        ].map(tile => (
+                          <div key={tile.label} className="rounded-lg bg-slate-50 px-3 py-2 text-center flex h-full flex-col items-center justify-between gap-1">
+                            <div className="text-[0.55rem] uppercase tracking-wide text-slate-500">{tile.label}</div>
+                            <div className="text-base font-semibold text-slate-900">{tile.value}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {program.type !== "None" && program.value && summary && summary.isFrenchCultural && summary.frenchCulturalProgress && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                        {[
+                          { label: "Total units", value: `${summary.frenchCulturalProgress.totalCompleted}/${summary.frenchCulturalProgress.totalRequired}` },
+                          { label: "French units", value: `${summary.frenchCulturalProgress.frenchUnits}/${summary.frenchCulturalProgress.frenchTarget}` },
+                          { label: "Foundation", value: `${summary.frenchCulturalProgress.foundation}/${summary.frenchCulturalProgress.foundationTarget}` },
+                          { label: "Level 300", value: `${summary.frenchCulturalProgress.level300}/${summary.frenchCulturalProgress.level300Target}` },
+                          { label: "Other dept", value: `${summary.frenchCulturalProgress.otherDept}/${summary.frenchCulturalProgress.otherDeptTarget}` },
+                        ].map(tile => (
+                          <div key={tile.label} className="rounded-lg bg-slate-50 px-3 py-2 text-center flex h-full flex-col items-center justify-between gap-1">
+                            <div className="text-[0.55rem] uppercase tracking-wide text-slate-500">{tile.label}</div>
+                            <div className="text-base font-semibold text-slate-900">{tile.value}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {program.type !== "None" && program.value && summary && summary.isGeosciences && summary.geosciencesProgress && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                        {[
+                          { label: "Core 100", value: `${summary.geosciencesProgress.core100}/1` },
+                          { label: "Core 200/203", value: `${summary.geosciencesProgress.core200 + summary.geosciencesProgress.core203}/3` },
+                          { label: "300-level", value: `${summary.geosciencesProgress.level300}/${summary.geosciencesProgress.level300Target}` },
+                          { label: "Lab 300", value: `${summary.geosciencesProgress.level300Lab}/${summary.geosciencesProgress.level300LabTarget}` },
+                          { label: "200-level count", value: summary.geosciencesProgress.level200 },
+                          { label: "Electives", value: `${summary.geosciencesProgress.elective}/${summary.geosciencesProgress.electiveTarget}` },
+                        ].map(tile => (
+                          <div key={tile.label} className="rounded-lg bg-slate-50 px-3 py-2 text-center flex h-full flex-col items-center justify-between gap-1">
+                            <div className="text-[0.55rem] uppercase tracking-wide text-slate-500">{tile.label}</div>
+                            <div className="text-base font-semibold text-slate-900">{tile.value}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {program.type !== "None" && program.value && summary && summary.isGermanStudies && summary.germanStudiesProgress && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        {[
+                          { label: "German above 102", value: `${summary.germanStudiesProgress.germanAbove102}/${summary.germanStudiesProgress.germanTarget}` },
+                          { label: "300-level", value: summary.germanStudiesProgress.level300 },
+                          { label: "English-taught (max)", value: `${summary.germanStudiesProgress.englishCourses}/${summary.germanStudiesProgress.englishMax}` },
+                        ].map(tile => (
+                          <div key={tile.label} className="rounded-lg bg-slate-50 px-3 py-2 text-center flex h-full flex-col items-center justify-between gap-1">
+                            <div className="text-[0.55rem] uppercase tracking-wide text-slate-500">{tile.label}</div>
+                            <div className="text-base font-semibold text-slate-900">{tile.value}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {program.type !== "None" && program.value && summary && summary.isHistory && summary.historyProgress && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                        {[
+                          { label: "HIST courses", value: `${summary.historyProgress.totalCompleted}/${summary.historyProgress.totalRequired}` },
+                          { label: "300-level", value: `${summary.historyProgress.level300}/${summary.historyProgress.level300Target}` },
+                          { label: "Seminar", value: summary.historyProgress.seminar ? "✓" : "—" },
+                          { label: "Non-Western", value: summary.historyProgress.nonWestern ? "✓" : "—" },
+                          { label: "Western", value: summary.historyProgress.western ? "✓" : "—" },
+                          { label: "Premodern", value: summary.historyProgress.premodern ? "✓" : "—" },
+                        ].map(tile => (
+                          <div key={tile.label} className="rounded-lg bg-slate-50 px-3 py-2 text-center flex h-full flex-col items-center justify-between gap-1">
+                            <div className="text-[0.55rem] uppercase tracking-wide text-slate-500">{tile.label}</div>
+                            <div className="text-base font-semibold text-slate-900">{tile.value}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {program.type !== "None" && program.value && summary && summary.isClsc && summary.clscProgress && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        {[
+                          { label: "Core foundation", value: `${summary.clscProgress.foundation.filter(step => step.completed).length}/${summary.clscProgress.foundation.length}` },
+                          { label: "Best concentration", value: `${summary.clscProgress.bestConcentration?.count || 0}/${summary.clscProgress.concentrationRequired}` },
+                          { label: "Concentration name", value: summary.clscProgress.bestConcentration?.label || "—" },
+                        ].map(tile => (
+                          <div key={tile.label} className="rounded-lg bg-slate-50 px-3 py-2 text-center flex h-full flex-col items-center justify-between gap-1">
+                            <div className="text-[0.55rem] uppercase tracking-wide text-slate-500">{tile.label}</div>
+                            <div className="text-base font-semibold text-slate-900">{tile.value}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {program.type !== "None" && program.value && summary && summary.isCams && summary.camsProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      {renderProgramRing()}
                       {(() => {
                         const cams = summary.camsProgress;
                         const cards = [
@@ -2453,7 +2135,6 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                   )}
                   {program.type !== "None" && program.value && summary && summary.isEnvironmentalStudies && summary.esProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      {renderProgramRing()}
                       {(() => {
                         const es = summary.esProgress;
                         const humanitiesAssigned = countAssignedRequirement(programCourses, program.id, "es-humanities");
@@ -2482,7 +2163,6 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                   )}
                   {program.type !== "None" && program.value && summary && summary.isClassics && summary.classicsProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      {renderProgramRing()}
                       {(() => {
                         const classics = summary.classicsProgress;
                         const cards = [
@@ -2509,7 +2189,6 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
 
                   {program.type !== "None" && program.value && summary && summary.isAfr && summary.afrProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      {renderProgramRing()}
                       <div className="grid gap-2 sm:grid-cols-3">
                         <div className="rounded border px-3 py-2 text-center">
                           <div className="text-[0.55rem] uppercase text-slate-500">Intro Course</div>
@@ -2538,7 +2217,6 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
 
                   {program.type !== "None" && program.value && summary && summary.isAmst && summary.amstProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      {renderProgramRing()}
                       <div className="grid gap-2 sm:grid-cols-3">
                         <div className="rounded border px-3 py-2 text-center">
                           <div className="text-[0.55rem] uppercase text-slate-500">Intro AMST</div>
@@ -2567,7 +2245,6 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
 
                   {program.type !== "None" && program.value && summary && summary.isAnthro && summary.anthroProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      {renderProgramRing()}
                       {(() => {
                         const tiles = [
                           { label: "ANTH 101", req: "anth-101", fallback: summary.anthroProgress.introPrimary ? "✓" : "0/1" },
@@ -2613,10 +2290,114 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                       </div>
                     </div>
                   )}
-
-                  {program.type !== "None" && program.value && summary && !summary.isSpecial && !summary.isCS && !summary.isBio && !summary.isAnthro && !summary.isEnglish && !summary.isAfr && !summary.isAmst && !summary.isArchitecture && !summary.isStudioArt && !summary.isArtHistory && !summary.isBiochemistry && !summary.isChemicalPhysics && !summary.isChemistry && !summary.isCams && !summary.isClassics && !summary.isClsc && !summary.isComparativeLit && !summary.isDataScience && !summary.isEastAsianStudies && !summary.isEducationStudies && !summary.isEnvironmentalStudies && (
+                  {program.type !== "None" && program.value && summary && summary.isEcon && summary.econProgress && (
                     <div className="mt-3 space-y-2 text-[0.65rem]">
-                      {renderProgramRing()}
+                      {(() => {
+                        const econ = summary.econProgress;
+                        const completedSequenceSteps = econ.sequences.reduce((count, seq) => 
+                          count + seq.steps.filter(step => step.completed).length, 0
+                        );
+                        const totalSequenceSteps = econ.sequences.reduce((count, seq) => 
+                          count + seq.steps.length, 0
+                        );
+                        
+                        // Check manually assigned requirements first, fall back to automatic detection
+                        const assigned300 = countAssignedRequirement(programCourses, program.id, "econ-300");
+                        const assignedElective = countAssignedRequirement(programCourses, program.id, "econ-elective");
+                        
+                        const cards = [
+                          { label: "Core sequences", value: `${completedSequenceSteps}/${totalSequenceSteps}` },
+                          { label: "300-level ECON", value: `${assigned300 || econ.level300Count}/${econ.level300Required}` },
+                          { label: "Electives", value: `${assignedElective || econ.electiveCount}/${econ.electiveRequired}` },
+                          { label: "Math prereq", value: econ.mathPrereqCompleted ? "✓" : "---" },
+                          { label: "Total ECON units", value: `${econ.econCourseCount}/9` },
+                        ];
+                        return (
+                          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                            {cards.map(card => (
+                              <div key={card.label} className="rounded border px-3 py-2 h-full text-center">
+                                <div className="text-[0.55rem] uppercase text-slate-500">{card.label}</div>
+                                <div className="text-sm font-semibold text-slate-900">{card.value}</div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                  {program.type !== "None" && program.value && summary && summary.isLas && summary.lasProgress && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                        {[
+                          { label: "Language (241+)", value: `${summary.lasProgress.language}/2` },
+                          { label: "Regional surveys", value: `${summary.lasProgress.surveys}/2` },
+                          { label: "Humanities", value: `${summary.lasProgress.humanities}/${summary.config?.lasStructure?.electiveRules?.humanities || 2}` },
+                          { label: "Hum 300+", value: `${summary.lasProgress.humanities300}/${summary.config?.lasStructure?.electiveRules?.humanities300 || 1}` },
+                          { label: "Social science", value: `${summary.lasProgress.social}/${summary.config?.lasStructure?.electiveRules?.socialScience || 2}` },
+                          { label: "SocSci 300+", value: `${summary.lasProgress.social300}/${summary.config?.lasStructure?.electiveRules?.socialScience300 || 1}` },
+                        ].map(tile => (
+                          <div key={tile.label} className="rounded-lg bg-slate-50 px-3 py-2 text-center flex h-full flex-col items-center justify-between gap-1">
+                            <div className="text-[0.55rem] uppercase tracking-wide text-slate-500">{tile.label}</div>
+                            <div className="text-base font-semibold text-slate-900">{tile.value}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {program.type !== "None" && program.value && summary && summary.isMer && summary.merProgress && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        {[
+                          { label: "Approved pool", value: `${summary.merProgress.units}/${summary.merProgress.unitTarget}` },
+                          { label: "Above 100-level", value: `${summary.merProgress.above100}/${summary.merProgress.above100Target}` },
+                          { label: "300-level", value: `${summary.merProgress.level300}/${summary.merProgress.level300Target}` },
+                        ].map(tile => (
+                          <div key={tile.label} className="rounded-lg bg-slate-50 px-3 py-2 text-center flex h-full flex-col items-center justify-between gap-1">
+                            <div className="text-[0.55rem] uppercase tracking-wide text-slate-500">{tile.label}</div>
+                            <div className="text-base font-semibold text-slate-900">{tile.value}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {program.type !== "None" && program.value && summary && summary.isMes && summary.mesProgress && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      <div className="grid gap-2 sm:grid-cols-4">
+                        {[
+                          { label: "Arabic 200+", value: `${summary.mesProgress.language}/2` },
+                          { label: "Concentration", value: `${summary.mesProgress.concentration}/${summary.mesProgress.concentrationTarget}` },
+                          { label: "300-level", value: `${summary.mesProgress.level300}/${summary.mesProgress.level300Target}` },
+                          { label: "Seminar", value: summary.mesProgress.seminarCode || "—" },
+                        ].map(tile => (
+                          <div key={tile.label} className="rounded-lg bg-slate-50 px-3 py-2 text-center flex h-full flex-col items-center justify-between gap-1">
+                            <div className="text-[0.55rem] uppercase tracking-wide text-slate-500">{tile.label}</div>
+                            <div className="text-base font-semibold text-slate-900">{tile.value}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {program.type !== "None" && program.value && summary && summary.isMusic && summary.musicProgress && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
+                      <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                        {[
+                          { label: "Theory", value: `${summary.musicProgress.theory}/${summary.musicProgress.theoryTarget}` },
+                          { label: "History/Culture", value: `${summary.musicProgress.history}/${summary.musicProgress.historyTarget}` },
+                          { label: "Elective", value: `${summary.musicProgress.elective}/${summary.musicProgress.electiveTarget}` },
+                          { label: "Capstone", value: `${summary.musicProgress.capstone}/${summary.musicProgress.capstoneTarget}` },
+                          { label: "Ensemble years", value: `${summary.musicProgress.ensemble}/${summary.musicProgress.ensembleTarget}` },
+                        ].map(tile => (
+                          <div key={tile.label} className="rounded-lg bg-slate-50 px-3 py-2 text-center flex h-full flex-col items-center justify-between gap-1">
+                            <div className="text-[0.55rem] uppercase tracking-wide text-slate-500">{tile.label}</div>
+                            <div className="text-base font-semibold text-slate-900">{tile.value}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {program.type !== "None" && program.value && summary && !summary.isSpecial && !summary.isCS && !summary.isBio && !summary.isEcon && !summary.isAnthro && !summary.isEnglish && !summary.isAfr && !summary.isAmst && !summary.isArchitecture && !summary.isStudioArt && !summary.isArtHistory && !summary.isBiochemistry && !summary.isChemicalPhysics && !summary.isChemistry && !summary.isCams && !summary.isClassics && !summary.isClsc && !summary.isComparativeLit && !summary.isDataScience && !summary.isEastAsianStudies && !summary.isEducationStudies && !summary.isEnvironmentalStudies && !summary.isLas && !summary.isMer && !summary.isMes && !summary.isMusic && !summary.isFrench && !summary.isFrenchCultural && !summary.isGeosciences && !summary.isGermanStudies && !summary.isHistory && (
+                    <div className="mt-3 space-y-2 text-[0.65rem]">
                       {(() => {
                         const manualRequired = new Set();
                         let manualElective = 0;
@@ -2642,16 +2423,17 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
                         const displayRequired = manualRequiredCount || summary.requiredCompleted;
                         const displayElective = manualElective || summary.electiveCompleted;
                         const displayMath = manualMathCount || summary.mathCompleted;
-                        const cards = [
+                        const cards = [];
+                        cards.push(
                           <div key="required" className="rounded-lg bg-slate-50 px-3 py-2 h-full">
                             <ProgramStatRow
                               label="Required"
-                              value={`${displayRequired}/${summary.requiredTotal}`}
+                              value={`${displayRequired}/${summary.requiredTotal || 0}`}
                               labelClass="text-[0.55rem] uppercase text-slate-500"
                               valueClass="text-base font-semibold text-slate-900"
                             />
-                          </div>,
-                        ];
+                          </div>
+                        );
                         if (summary.electiveTotal > 0) {
                           cards.push(
                             <div key="electives" className="rounded-lg bg-slate-50 px-3 py-2 h-full">
@@ -2737,6 +2519,20 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
       }
     };
 
+    const getEligibleCourses = (reqId) => {
+      const byTag = (tag) => allCourses.filter(course => (course.tags || []).includes(tag));
+      switch (reqId) {
+        case "GROUP1_TOTAL":
+          return uniqueCourses([...byTag("LL"), ...byTag("ARTS")]);
+        case "GROUP2_TOTAL":
+          return uniqueCourses([...byTag("SBA"), ...byTag("EC"), ...byTag("REP"), ...byTag("HST")]);
+        case "GROUP3_TOTAL":
+          return uniqueCourses([...byTag("NPS"), ...byTag("MM")]);
+        default:
+          return uniqueCourses(byTag(reqId));
+      }
+    };
+
     const renderRequirementCard = (req, extraNote) => {
       const assignedCourses = req.id === "UNITS" ? [] : getRequirementCourses(req.id);
       return (
@@ -2769,15 +2565,34 @@ const chooseDistributionTag = (courseTags = [], counts = {}) => {
           {extraNote && (
             <div className="mt-1 text-[0.65rem] text-slate-500">{extraNote}</div>
           )}
-          {assignedCourses.length > 0 && (
-            <ul className="mt-2 text-[0.65rem] text-slate-500">
-              {assignedCourses.map((course, idx) => (
-                <li key={idx}>
-                  {course.code || course.title || "Course"} ({course.term})
-                </li>
-              ))}
-            </ul>
-          )}
+          {(() => {
+            const eligibleCourses = req.id === "UNITS" ? [] : getEligibleCourses(req.id);
+            return (
+              <div className="mt-2 space-y-1 text-[0.65rem] text-slate-600">
+                {assignedCourses.length > 0 && (
+                  <div>
+                    <div className="font-semibold text-slate-700">Counted:</div>
+                    <ul className="ml-3 list-disc">
+                      {assignedCourses.map((course, idx) => (
+                        <li key={`counted-${idx}`}>{course.code || course.title || "Course"} ({course.term})</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {eligibleCourses.length > 0 && (
+                  <div>
+                    <div className="font-semibold text-slate-700">Eligible courses:</div>
+                    <ul className="ml-3 list-disc">
+                      {eligibleCourses.slice(0, 6).map((course, idx) => (
+                        <li key={`eligible-${idx}`}>{course.code || course.title || "Course"} ({course.term})</li>
+                      ))}
+                      {eligibleCourses.length > 6 && <li>+{eligibleCourses.length - 6} more</li>}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       );
     };
@@ -2929,16 +2744,16 @@ const renderMajorPlannerCard = (majorValue, setMajorValue, cardTitle = "Major Pl
     return majorReq.description || "";
   })();
   const matchingProgram = programSelections.find(program => program.value === majorValue);
-  const programCourses = matchingProgram ? getCoursesForProgram(matchingProgram.id) : [];
+  const programCourses = matchingProgram ? getCoursesForProgram(matchingProgram.id, allCourses) : [];
   const requirementOptions = matchingProgram ? programRequirementOptionsMap[matchingProgram.id] || [] : [];
   const requirementProgress = matchingProgram && requirementOptions.length
     ? computeRequirementProgress(matchingProgram.id, requirementOptions, programCourses)
     : { pct: 0, subtitle: matchingProgram ? "Mark requirements" : "Select a major" };
-  const relevantCourses = majorValue ? getMajorRelevantCourses(majorValue, allCourses, programSelections) : [];
-  const totalUnitsStat = majorValue ? getTotalUnitsStat(majorValue, relevantCourses) : null;
+  const relevantCourses = majorValue ? getMajorRelevantCourses(majorValue, allCourses, programSelections, resolveMajorConfigKeyFn) : [];
+  const totalUnitsStat = majorValue ? getTotalUnitsStat(majorValue, relevantCourses, resolveMajorConfigKeyFn) : null;
   const fallbackUnits = (() => {
     if (totalUnitsStat) return totalUnitsStat;
-    const target = majorValue ? getMajorRequirementTarget(majorValue) : 0;
+    const target = majorValue ? getMajorRequirementTarget(majorValue, resolveMajorConfigKeyFn) : 0;
     if (target) return { earned: 0, target };
     return null;
   })();
