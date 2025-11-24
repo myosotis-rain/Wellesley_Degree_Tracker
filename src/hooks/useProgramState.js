@@ -36,8 +36,8 @@ const alignInitialProgramSelections = (rawSelections, snapshot) => {
   const selections = rawSelections.map(entry => ({ ...entry }));
   const primarySlot = selections.find(entry => entry.id === "programA");
   if (primarySlot) {
+    primarySlot.type = "Major";
     if (snapshot?.primaryMajor) {
-      primarySlot.type = "Major";
       primarySlot.value = snapshot.primaryMajor;
     }
   }
